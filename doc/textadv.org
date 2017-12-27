@@ -1,0 +1,333 @@
+#+TITLE: Adversarial Texts with Gradient Methods
+#+AUTHOR: Zhitao Gong, Wenlu Wang, Bo Li, Dawn Song, Wei-Shinn Ku
+
+#+STARTUP: overview
+#+OPTIONS: toc:nil num:t ^:{}
+#+OPTIONS: author:nil title:nil date:nil
+
+#+LATEX_CLASS: IEEEtran
+#+LATEX_CLASS_OPTIONS: [conference,letter,10pt,final,dvipsnames]
+
+#+LATEX_HEADER: \usepackage{booktabs}
+#+LATEX_HEADER: \usepackage[inline]{enumitem}
+#+LATEX_HEADER: \usepackage{xcolor}
+#+LATEX_HEADER: \usepackage[backend=biber]{biblatex}
+#+LATEX_HEADER: \addbibresource{~/.local/data/bibliography/nn.bib}
+#+LATEX_HEADER: \renewcommand*{\bibfont}{\small}
+
+# title and author
+#+BEGIN_EXPORT latex
+% This is the real title appearing in the final PDF
+\title{Adversarial Texts with Gradient Methods}
+
+\author{
+\IEEEauthorblockN{
+  Zhitao Gong\IEEEauthorrefmark{1},
+  Wenlu Wang\IEEEauthorrefmark{1},
+  Bo Li\IEEEauthorrefmark{2},
+  Dawn Song\IEEEauthorrefmark{2},
+  Wei-Shinn Ku\IEEEauthorrefmark{1}}
+
+\IEEEauthorblockA{\IEEEauthorrefmark{1}
+  \texttt{\{gong,wenluwang,weishinn\}@auburn.edu}\\
+  Auburn University, Auburn AL, USA}
+\IEEEauthorblockA{\IEEEauthorrefmark{2}
+  \texttt{\{crystalboli,dawnsong\}@berkeley.edu}\\
+  UC Berkeley, Berkeley, CA, USA}
+}
+#+END_EXPORT
+
+#+LaTeX: \maketitle
+
+* Abstract                                                           :ignore:
+
+#+BEGIN_abstract
+Image adversarial samples have been extensively studied in literature.  In this
+work, we propose a framework to extend the gradient-based attacking methods on
+image model to text model.  The main difficulties for generating adversarial
+texts with gradient-based methods are:
+#+BEGIN_EXPORT latex
+\begin{enumerate*}[label=(\roman*)]
+ \item the input space is discrete, which makes it difficult to interpret the
+ perturbed results,
+ \item the measurement of the adversarial texts quality is difficult.
+\end{enumerate*}
+#+END_EXPORT
+We tackle the first problem by searching for adversarials in the embedding space
+and then reconstruct the adversarial texts by nearest-neighbor search.  With
+careful chosen of the noise level, we can generate readable adversarial texts.
+For the latter problem, we propose the average word embedding distance (AWED) to
+measure the quality of generated adversarial texts.  We empirically evaluate our
+framework with FGM and DeepFool on two text classification tasks, IMDB and
+Reuters.  On both tasks, we are able to generate high quality adversarial texts.
+In addition, we empirically show that the AWED score is very effective at
+ranking adversarial texts.
+#+END_abstract
+
+* Introduction
+:PROPERTIES:
+:CUSTOM_ID: sec:introduction
+:END:
+
+It has been shown that carefully chosen noise may trick the deep neural networks
+into wrong predictions with very high confidence cite:szegedy2013-intriguing.
+Many followup work proposed cheap yet effective methods to find such adversarial
+noise, e.g., fast gradient method (FGM) cite:goodfellow2014-explaining,
+Jacobian-based saliency map approach (JSMA) cite:papernot2015-limitations,
+DeepFool cite:moosavi-dezfooli2015-deepfool, CW cite:carlini2016-towards, etc.
+Both empirical and theoretical investigation of this phenomenon deepen our
+understanding of the dynamics of deep models.
+
+However, most of the previous work focused on image models.  Only a few attempts
+have been make on text models.  In order to gain a better understanding into
+text models, it is worthwhile to investigate adversarial samples for text models
+as well.  In this work, we propose a simple and effective framework to extend
+the adversarial image methods to text model.  There are two major problems we
+need to resolve before we can plugin the gradient methods for generating
+adversarial images.
+1. The input space is discrete.  As a result, it is not possible to accumulate
+   small noise computed with gradient methods.  They work well with image model
+   since the input space is smooth.
+2. It is difficult to quantify the quality of adversarial texts.  For images, we
+   usually norm distance (e.g., \(L_1\), \(L_2\), \(L_\infty\)), perceptual
+   distance \cite{li2002-dpf}, etc.  While for text, there are no good metrics
+   to measure the quality.
+
+In this work, we explore adversarials in the text vector space
+cite:mikolov2013-efficient and reconstruct the adversarial texts with the
+perturb embeddings via nearest neighbor search.  In addition, we also propose
+/average word embedding distance/ (AWED) as a quality measurement for the
+generated adversarial texts.
+
+This article is organized as follows.  We briefly review recent work on
+adversarial images and texts generating algorithms in
+Section ref:sec:related-work.  Our adversarial texts framework is detailed in
+Section ref:sec:our-method.  We evaluate our method on various text benchmarks
+and the results are reported in Section ref:sec:experiment.  We conclude this
+article and provide guides for future work in Section ref:sec:conclusion.  Codes
+to reproduce our results are available online[fn:2].
+
+* Related Work
+:PROPERTIES:
+:CUSTOM_ID: sec:related-work
+:END:
+
+Since the discussion of /intriguing properties/ cite:szegedy2013-intriguing,
+i.e., existence of adversarial samples, there have been abundance of work on
+attacking methods to generate adversarial images.  These adversarial images
+raise security concern about the wide application of deep neural
+networks cite:kurakin2016-adversarial.  As a result, many work have investigated
+defense against these adversarial samples.  However, so far as we see in
+literature, the attacking is much easier and cheaper than defense.
+
+The attacking methods mainly fall into three categories, gradient based,
+optimization based and model based.
+
+1. *Gradient based methods* find the noise based on target model gradients, thus
+   requiring full knowledge of the target model, i.e., white-box attack. fast
+   gradient method (FGM) cite:goodfellow2014-explaining and its variants, i.e.,
+   iterative FGM and targeted FGM cite:kurakin2016-adversarial, which are based
+   on the hypothesis that adversarial samples exist as a result of neural
+   network being too /linear/ instead of /nonlinear/. Jacobian based saliency
+   map approach (JSMA) cite:papernot2015-limitations, which perturbs the pixel
+   with the highest saliency score, i.e., the one that contributes the most to
+   the final prediction.  And DeepFool cite:moosavi-dezfooli2015-deepfool, which
+   iteratively finds the shortest distance to cross the decision boundary of the
+   target classifier.
+2. *Optimization based methods* conduct a black-box attack, using the target
+   model only as an oracle. Minimizing the noise and loss via box-constrained
+   optimization, e.g., L-BFGS cite:szegedy2013-intriguing.
+   CW cite:carlini2016-towards is a refinement of the above method.
+   cite:carlini2016-towards introduces tricks to re-formulate the problem and
+   remove the constraint condition.
+3. *Model based methods*.  also formulate the adversarial attack as an
+   optimization. Instead of perform the optimization directly, these models
+   utilize a separate model to create a mapping from the input space to noise
+   space. Adversarial transformation network (ATN) cite:baluja2017-adversarial
+   trains a another multilayer neural network to map from clean samples to
+   either adversarial noise or adversarial samples directly.
+   cite:zhao2017-generating generates adversarial samples via Generative
+   Adversarial Network (GAN) cite:goodfellow2014-generative.
+
+The above methods mostly focus on image adversarial samples.  As we've
+discussed, the main problem to extend current method to text models are discrete
+input space and lack of quality metric.  cite:liang2017-deep directly applied
+FGM to character-level CNN cite:zhang2015-character without much success.
+cite:zhao2017-generating work around the first problem via GAN model.  They
+first train a GAN that models input distribution and search for adversarials in
+the generator's input space, which is smooth and easy to interpolate.  Other
+mainstream of work mainly rely on three types of modification on the clean text,
+i.e., /insertion/, /deletion/ and /replacement/.  The words chosen to be
+modified are selected with heavy manual features as heuristics.
+cite:samanta2017-towards manually constructs a pool of potential adversarial
+modifications including synonyms, typos, and words specific to the model task.
+cite:liang2017-deep
+
+cite:jia2017-adversarial
+
+* Our Method
+:PROPERTIES:
+:CUSTOM_ID: sec:our-method
+:END:
+
+#+ATTR_LaTeX: :float multicolumn :width \textwidth
+#+CAPTION: Examples of adversarial texts with AWED scores.  The adversarial texts are generated via FGM on Reuters dataset.  The target model achieves approximately 0.8 accuracy on the classifcation task.  The adversarial text changes from label 59 to label 10.  The corresponding changes are \colorbox{red!10}{highlighted}.
+#+NAME: fig:textdemo
+[[file:img/demo.pdf]]
+
+The general idea is that we first find adversarials in the embedding space via
+gradient methods, e.g., FGM cite:goodfellow2014-explaining,
+DeepFool cite:moosavi-dezfooli2015-deepfool, etc., and then reconstruct the
+perturbed sentence via nearest neighbor search.  Searching for adversarials in
+the embedding space is similar to searching for adversarial images in the raw
+input space.  However, the problem for adversarial embeddings is that the
+perturbed word vectors are rarely meaningful.  In other word, they do not
+correspond to any words in most cases.  In order to reconstruct the perturbed
+sentence, we use nearest neighbor search to round the perturbed vectors to
+nearest word vectors.
+
+This framework builds upon the following two observations.
+1. The embedded word vectors preserve the subtle semantic relationships among
+   words \cite{mikolov2013-efficient, mikolov2013-distributed}.  For example,
+   the result of a vector calculation vec("Madrid") - vec("Spain") +
+   vec("France") is closer to vec("Paris") than to any other word
+   vectors cite:mikolov2013-linguistic.
+2. The input features, e.g., pixels, words, that are relatively more important
+   for the final predictions will receive more noise, while others relatively
+   less noise.  The is actually the motivation behind many of the adversarial
+   image attacking methods.  For example, in Figure ref:fig:mnistdemo, the
+   noises are either centered around a few pixels with large values or spread
+   around many pixels with subtle values.  Another adversarial text example is
+   demonstrated in Figure ref:fig:textdemo.  As we can see, after been rounded
+   by nearest neighbor search, only a few words are changed, while most words
+   remained the same.
+
+#+CAPTION: Each row, from top to bottom, contains the clean images, the noises (in heatmap), and the adversarial images.  The adversarial image in each column, from left to right, is generated via FGM, JSMA, and DeepFool, respectively.
+#+NAME: fig:mnistdemo
+[[file:img/mnistadv.pdf]]
+
+Intuitively, the vocabulary size and quality of the word vectors are crucial to
+our method.  In our experiment, we use GloVe cite:pennington2014-glove as our
+embedding space, specifically the =glove.840B.300d=, which embeds 840 billion
+tokens (roughly 2.2 million vocabularies) to vector space of 300 dimensions.
+
+* Average Word Embedding Distance (AWED)
+
+# Should be in experiment section, placed here for typesetting.
+#+ATTR_LaTeX: :float multicolumn :width \textwidth
+#+CAPTION: Examples of adversarial texts with AWED scores (the lower, the better).  These are generated via FGM on IMDB dataset.  P and N denotes the label of the comments, where P means positive comments and N negative.  P\(\to\)N means that the adversarial texts cause the label to change from positive to negative, and vise versa.  The changed words are \colorbox{red!10}{highlighted}.
+#+NAME: fig:textadv
+[[file:img/textadv.pdf]]
+
+We propose to use /average word embedding distance/ (AWED) to measure the
+quality of adversarial texts.  The AWED is defined as the
+#+BEGIN_EXPORT latex
+\begin{equation}
+ \label{eq:awed}
+ s = \frac{\sum_i \left\|w_i - w_i^\prime\right\|_2}{L}
+\end{equation}
+#+END_EXPORT
+
+Where \(w_i\)(\(w_i^\prime\)) is the word vector for \(i\)-th word in the
+original(adversarial) sentence, \(L\) is the number of tokens in the sentence,
+and \(\left\|\cdot\right\|\) denotes the L2 distance.  The consideration behind
+this metric is as follows.
+#+BEGIN_EXPORT latex
+\begin{enumerate*}[label=(\roman*)]
+ \item Shorter sentences have low tolerance for text change than longer
+ sentences.  For example, replacing just 10 words in a sentence with 100 tokens
+ is more acceptable than replacing 10 words in a 20-token sentence.
+ \item Replace tokens with synonyms or semantically related tokens will result
+ in shorter distance.
+\end{enumerate*}
+#+END_EXPORT
+Intuitively, this metric captures the number of words changed and quality of
+overall replacement.
+
+* Experiment
+:PROPERTIES:
+:CUSTOM_ID: sec:experiment
+:END:
+
+We evaluate our methods on two datasets.
+1. IMDB cite:maas2011-learning.  This is a dataset for binary sentiment
+   classification.  It contains a set of 25,000 highly polar (positive or
+   negative) movie reviews for training, and 25,000 for testing.
+2. Reuters [fn:1].  This is a dataset of 11,228 newswires from Reuters, labeled
+   over 46 topics.
+
+In this work, we focus on feedforward models.  Specifically, we use CNN model
+for both classification tasks, the model structure in summarized in
+Figure ref:fig:cnnmodel.
+
+#+ATTR_LaTeX: :width \linewidth :placement [!ht]
+#+CAPTION: CNN model for text classification.
+#+NAME: fig:cnnmodel
+[[file:img/cnnmodel.pdf]]
+
+Where \(B\) denotes batch size, set to 128 in our all experiment.  \(L\) is the
+maximum sentence length, set to 400 for IMDB and 1000 for Reuters.  \(D\) is the
+word vector space dimension, set to 300 since we use pre-trained GloVe embedding
+(=glove.840B.300d=).  And \(K\) is the number of categories, 1 for IMDB and 46
+for Reuters.
+
+Raw texts are tokenized using NLTK cite:bird2009-natural, truncated or padded to
+a predefined maximum sentence length, and embedded into vector space with GloVe.
+The resulting embedding matrices are then fed into our model for classification.
+To get adversarial texts, we first generate adversarials in the vector space
+which are rounded to the nearest word vector by nearest neighbor search.  The
+results are summarized in Table ref:tab:acc.
+
+#+ATTR_LaTeX: :booktabs t
+#+CAPTION: Aversarial text results.
+#+NAME: tab:acc
+| Dataset | Clean | Adv Embedding | Adv Text |
+|---------+-------+---------------+----------|
+| IMDB    |  0.88 |          0.15 |     0.40 |
+| Reuters |  0.72 |          0.27 |     0.40 |
+
+The "Clean" column shows the model accuracy on clean test dataset.  We are not
+striving to match the state-of-the-art accuracy, instead we focus on
+demonstrating the effectiveness of our adversarial text framework.  The "Adv
+Embedding" column shows the model accuracy on adversarial embeddings.  This
+results are not surprising since FGM and DeepFool have shown to be very
+effective attacking methods.  The "Adv Text" columns shows the model accuracy on
+adversarial texts reconstructed by nearest neighbor search.  Note reconstructing
+
+* Conclusion
+:PROPERTIES:
+:CUSTOM_ID: sec:conclusion
+:END:
+
+In this work we proposed a framework for adversarial texts generation, i.e.,
+searching for adversarials in embedding space and reconstruct the adversarial
+texts by nearest neighbor search.  We demonstrate the effectiveness of our
+method on two text benchmark problems.  In addition, we proposed an evaluation
+metric for measuring the quality of adversarial texts, i.e, the average word
+embedding distance (AWED).  There are several directions to extend our work in
+the future.
+1. Speedup the nearest neighbor search as it is the major computation
+   bottleneck.  We may
+   #+BEGIN_EXPORT latex
+   \begin{enumerate*}[label=(\roman*)]
+    \item embed the word vector space to a lower dimension and search for nearest
+    neighbor in the lower dimension instead,
+    \item simulate the nearest neighbor search with another neural network
+    model~\cite{kraska2017-case,chen1997-neural}, or
+    \item employ an approximate nearest neighbor
+    search~\cite{kushilevitz1998-efficient}
+   \end{enumerate*}
+   #+END_EXPORT
+2. Adapt our framework to recurrent models.
+3. Improve the evaluation metric to take into consideration the structure
+   information besides word-wise similarity.
+
+* Reference                                                          :ignore:
+
+#+LaTeX: \printbibliography
+
+* Footnotes
+
+[fn:1] http://www.daviddlewis.com/resources/testcollections/reuters21578/
+
+[fn:2] [[https://github.com/gongzhitaao/adversarial-text]].

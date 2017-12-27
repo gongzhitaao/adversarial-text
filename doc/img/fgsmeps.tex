@@ -1,0 +1,39 @@
+\documentclass[dvipsnames,crop,tikz,border=1px]{standalone}
+\usepackage{xcolor}
+%\usepackage{lmodern}
+%\SetSymbolFont{letters}{bold}{OML}{cmbr}{bx}{it}
+\renewcommand{\familydefault}{\sfdefault}
+
+\newcommand{\hl}[1]{\colorbox{red!10}{#1}}
+
+\usetikzlibrary{matrix,arrows,positioning,scopes,shapes}
+
+\begin{document}
+\begin{tikzpicture}
+  \matrix[matrix of nodes,every nodes/.style={rectangle},
+ row 1/.style={nodes={anchor=center,align=center,font=\bf}},
+ row 2/.style={nodes={anchor=north,minimum height=3cm}},
+ row 3/.style={nodes={anchor=north,minimum height=3cm}},
+ row 4/.style={nodes={anchor=north,minimum height=2cm}},
+ column 1/.style={nodes={text width=10cm}},
+ column 2/.style={nodes={text width=1cm}},
+ column 3/.style={nodes={text width=1cm}},
+ column 4/.style={nodes={text width=10cm}}] {
+   {Clean Text} & {Label} & {Score} & {Adversarial Text} \\
+
+{This film to me \hl{is} \hl{a} \hl{very} \hl{good} film!  \hl{!} \(<\) br /
+  \(>\) \(<\) br / \(>\) \hl{I} \hl{have} a German Shepherd myself and I wish to
+  god he was \hl{like} Jerry Lee!! I \hl{hope} \hl{too} that there is another
+  K-9 in \hl{the} running!! With Jerry Lee \hl{and} Dooley in them!! \hl{I} do
+  \hl{n't} care what any one \hl{say} \hl{these} \hl{two} films were
+  \hl{excellent} \hl{!}} & {P\(\to\)N} & {3.0859} & {This film to me \hl{be}
+  \hl{another} \hl{so} \hl{bad} film!  \hl{?!}  \(<\) br / \(>\) \(<\) br / \(>\)
+  \hl{n't} \hl{should} a German Shepherd myself and I wish to god he was
+  \hl{n't} Jerry Lee!! I \hl{hoping} \hl{seem} that there is another K-9 in
+  \hl{one} running!! With Jerry Lee \hl{of} Dooley in them!! \hl{'m} do \hl{do}
+  care what any one \hl{saying} \hl{those}
+  \hl{three} films were \hl{good} \hl{?!!}}\\
+ };
+
+\end{tikzpicture}
+\end{document}
