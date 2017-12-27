@@ -1,0 +1,8 @@
+auto
+*.el
+out
+tmp
+scratch.py
+old
+*.pdf
+*.tex
