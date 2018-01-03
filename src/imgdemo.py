@@ -1,5 +1,5 @@
 """
-Code to generate fig:minstdemo
+Code to visualize noise of all adversarial algorithm.
 """
 import os
 
@@ -13,6 +13,9 @@ import matplotlib.gridspec as gridspec
 import tensorflow as tf
 
 from attacks import fgm, jsma, deepfool
+
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 
 img_size = 28
@@ -111,6 +114,8 @@ with tf.variable_scope('model', reuse=True):
     env.adv_y = tf.placeholder(tf.int32, (), name='adv_y')
 
     env.x_fgsm = fgm(model, env.x, epochs=env.adv_epochs, eps=env.adv_eps)
+    env.x_fgvm = fgm(model, env.x, epochs=env.adv_epochs, eps=env.adv_eps,
+                     sign=False)
     env.x_deepfool = deepfool(model, env.x, epochs=env.adv_epochs, batch=True)
     env.x_jsma = jsma(model, env.x, env.adv_y, eps=env.adv_eps,
                       epochs=env.adv_epochs)
@@ -213,9 +218,6 @@ def predict(sess, env, X_data, batch_size=128):
 
 
 def make_fgsm(sess, env, X_data, epochs=1, eps=0.01, batch_size=128):
-    """
-    Generate FGSM by running env.x_fgsm.
-    """
     print('\nMaking adversarials via FGSM')
 
     n_sample = X_data.shape[0]
@@ -235,10 +237,27 @@ def make_fgsm(sess, env, X_data, epochs=1, eps=0.01, batch_size=128):
     return X_adv
 
 
+def make_fgvm(sess, env, X_data, epochs=1, eps=0.01, batch_size=128):
+    print('\nMaking adversarials via FGSM')
+
+    n_sample = X_data.shape[0]
+    n_batch = int((n_sample + batch_size - 1) / batch_size)
+    X_adv = np.empty_like(X_data)
+
+    for batch in range(n_batch):
+        print(' batch {0}/{1}'.format(batch + 1, n_batch), end='\r')
+        start = batch * batch_size
+        end = min(n_sample, start + batch_size)
+        feed_dict = {env.x: X_data[start:end], env.adv_eps: eps,
+                     env.adv_epochs: epochs}
+        adv = sess.run(env.x_fgvm, feed_dict=feed_dict)
+        X_adv[start:end] = adv
+    print()
+
+    return X_adv
+
+
 def make_jsma(sess, env, X_data, epochs=0.2, eps=1.0, batch_size=128):
-    """
-    Generate JSMA by running env.x_jsma.
-    """
     print('\nMaking adversarials via JSMA')
 
     n_sample = X_data.shape[0]
@@ -262,9 +281,6 @@ def make_jsma(sess, env, X_data, epochs=0.2, eps=1.0, batch_size=128):
 
 
 def make_deepfool(sess, env, X_data, epochs=1, eps=0.01, batch_size=128):
-    """
-    Generate FGSM by running env.xadv.
-    """
     print('\nMaking adversarials via FGSM')
 
     n_sample = X_data.shape[0]
@@ -297,38 +313,44 @@ print('\nGenerating adversarial data')
 print('\nRandomly sample adversarial data from each category')
 
 while True:
-    ind = np.random.choice(X_test.shape[0], size=3, replace=False)
-    xorg, y = X_test[ind], y_test[ind]
+    ind = np.random.choice(X_test.shape[0])
+    xorg, y0 = X_test[ind], y_test[ind]
 
-    z0 = np.argmax(y, axis=1)
-    z1 = np.argmax(predict(sess, env, xorg), axis=1)
+    xorg = np.expand_dims(xorg, axis=0)
+    z0 = np.argmax(y0)
+    z1 = np.argmax(predict(sess, env, xorg))
 
-    if not np.all([z0 == z1]):
+    if z0 != z1:
         continue
 
-    xadv = [make_fgsm(sess, env, np.expand_dims(xorg[0], 0), eps=0.02,
-                      epochs=8),
-            make_jsma(sess, env, np.expand_dims(xorg[1], 0), eps=0.8,
-                      epochs=30),
-            make_deepfool(sess, env, np.expand_dims(xorg[2], 0), epochs=1)]
-    y2 = [predict(sess, env, xi).flatten() for xi in xadv]
+    xadvs = [make_fgsm(sess, env, xorg, eps=0.02, epochs=10),
+             make_fgvm(sess, env, xorg, eps=0.1, epochs=10),
+             make_jsma(sess, env, xorg, eps=0.5, epochs=40),
+             make_deepfool(sess, env, xorg, epochs=1)]
+    y2 = [predict(sess, env, xi).flatten() for xi in xadvs]
     p2 = [np.max(yi) for yi in y2]
     z2 = [np.argmax(yi) for yi in y2]
 
     if np.all([z0 != z2]):
         break
 
-fig = plt.figure(figsize=(3.2, 3.2))
-gs = gridspec.GridSpec(3, 4, width_ratios=[1, 1, 1, 0.1], wspace=0.01,
+fig = plt.figure(figsize=(5.2, 2.2))
+gs = gridspec.GridSpec(2, 6, width_ratios=[1, 1, 1, 1, 1, 0.1], wspace=0.01,
                        hspace=0.01)
-label = ['FGM', 'JSMA', 'DeepFool']
+label = ['Clean', 'FGSM', 'FGVM', 'JSMA', 'DeepFool']
 
-for i in range(3):
-    x0 = np.squeeze(xorg[i])
-    x1 = np.squeeze(xadv[i])
+xorg = np.squeeze(xorg)
+xadvs = [xorg] + xadvs
+xadvs = [np.squeeze(e) for e in xadvs]
+
+p2 = [np.max(y0)] + p2
+z2 = [z0] + z2
+
+for i in range(len(label)):
+    x = xadvs[i]
 
     ax = fig.add_subplot(gs[0, i])
-    ax.imshow(x0, cmap='gray', interpolation='none')
+    ax.imshow(x, cmap='gray', interpolation='none')
     ax.set_xticks([])
     ax.set_yticks([])
 
@@ -336,19 +358,14 @@ for i in range(3):
     ax.xaxis.set_label_position('top')
 
     ax = fig.add_subplot(gs[1, i])
-    img = ax.imshow(x1-x0, cmap='RdBu_r', vmin=-1, vmax=1,
+    img = ax.imshow(x-xorg, cmap='RdBu_r', vmin=-1, vmax=1,
                     interpolation='none')
-    ax.set_xticks([])
-    ax.set_yticks([])
-
-    ax = fig.add_subplot(gs[2, i])
-    ax.imshow(x1, cmap='gray', interpolation='none')
     ax.set_xticks([])
     ax.set_yticks([])
 
     ax.set_xlabel('{0} ({1:.2f})'.format(z2[i], p2[i]), fontsize=12)
 
-ax = fig.add_subplot(gs[1, 3])
+ax = fig.add_subplot(gs[1, 5])
 dummy = plt.cm.ScalarMappable(cmap='RdBu_r',
                               norm=plt.Normalize(vmin=-1, vmax=1))
 dummy.set_array([])
@@ -358,4 +375,4 @@ print('\nSaving figure')
 
 gs.tight_layout(fig)
 os.makedirs('out', exist_ok=True)
-plt.savefig('out/mnistadv.pdf')
+plt.savefig('out/imgdemo.pdf')
