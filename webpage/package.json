@@ -1,0 +1,44 @@
+{
+  "name": "textadv",
+  "version": "1.0.0",
+  "description": "Demo adversarial texts generated via gradient methods",
+  "main": "gulpfile.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gongzhitaao/adversarial-text.git"
+  },
+  "keywords": [
+    "adversarial",
+    "text",
+    "tensorflow",
+    "python",
+    "security",
+    "deep",
+    "learning"
+  ],
+  "author": "Zhitao Gong",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/gongzhitaao/adversarial-text/issues"
+  },
+  "homepage": "https://github.com/gongzhitaao/adversarial-text#readme",
+  "devDependencies": {
+    "autoprefixer": "^7.2.4",
+    "browser-sync": "^2.23.2",
+    "cssnano": "^3.10.0",
+    "del": "^3.0.0",
+    "gulp": "^4.0.0",
+    "gulp-changed": "^3.2.0",
+    "gulp-filter": "^5.1.0",
+    "gulp-htmlmin": "^4.0.0",
+    "gulp-merge": "^0.1.1",
+    "gulp-plumber": "^1.1.0",
+    "gulp-postcss": "^7.0.1",
+    "gulp-replace": "^0.6.1",
+    "gulp-watch": "^4.3.11",
+    "precss": "^2.0.0"
+  }
+}

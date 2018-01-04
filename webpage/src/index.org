@@ -1,0 +1,42 @@
+#+TITLE: Adversarial Texts with Gradient Methods
+# #+AUTHOR: Zhitao Gong, Wenlu Wang, Bo Li, Dawn Song, Wei-Shinn Ku
+#+HTML_HEAD: <link rel="stylesheet" type="text/css" href="http://gongzhitaao.org/orgcss/org.css"/>
+
+* Abstract                                                           :ignore:
+
+#+BEGIN_abstract
+#+END_abstract
+
+* Introduction
+
+cite:brown2017-adversarial
+
+* Result
+
+#+CAPTION: Adversarial text via FGSM
+#+NAME: tab:textadv-fgsm
+| \epsilon  | 0.40            | 0.35            | 0.30            | 0.25            |
+|-----------+-----------------+-----------------+-----------------+-----------------|
+| IMDB      | [[file:result/imdb_fgsm_eps0.40.html][0.1213 / 0.1334]] | [[file:result/imdb_fgsm_eps0.35.html][0.1213 / 0.1990]] | [[file:result/imdb_fgsm_eps0.30.html][0.1213 / 0.4074]] | [[file:result/imdb_fgsm_eps0.25.html][0.1213 / 0.6770]] |
+| Reuters-2 | [[file:result/reuters2_fgsm_eps0.40.html][0.0146 / 0.6495]] | [[file:result/reuters2_fgsm_eps0.35.html][0.0146 / 0.7928]] | [[file:result/reuters2_fgsm_eps0.30.html][0.0146 / 0.9110]] | [[file:result/reuters2_fgsm_eps0.25.html][0.0146 / 0.9680]] |
+| Reuters-5 | [[file:result/reuters5_fgsm_eps0.40.html][0.1128 / 0.5880]] | [[file:result/reuters5_fgsm_eps0.35.html][0.1128 / 0.7162]] | [[file:result/reuters5_fgsm_eps0.30.html][0.1128 / 0.7949]] | [[file:result/reuters5_fgsm_eps0.25.html][0.1128 / 0.8462]] |
+
+#+CAPTION: Adversarial text via FGVM
+#+NAME: tab:textadv-fgvm
+| \epsilon  | 15              | 30              | 50              | 100             |
+|-----------+-----------------+-----------------+-----------------+-----------------|
+| IMDB      | [[file:result/imdb_fgvm_eps15.html][0.6888 / 0.8538]] | [[file:result/imdb_fgvm_eps30.html][0.6549 / 0.8354]] | [[file:result/imdb_fgvm_eps50.html][0.6277 / 0.8207]] | [[file:result/imdb_fgvm_eps100.html][0.5925 / 0.7964]] |
+| Reuters-2 | [[file:result/reuters2_fgvm_eps15.html][0.7747 / 0.7990]] | [[file:result/reuters2_fgvm_eps30.html][0.7337 / 0.7538]] | [[file:result/reuters2_fgvm_eps50.html][0.6975 / 0.7156]] | [[file:result/reuters2_fgvm_eps100.html][0.6349 / 0.6523]] |
+| Reuters-5 | [[file:result/reuters5_fgvm_eps15.html][0.5915 / 0.7983]] | [[file:result/reuters5_fgvm_eps30.html][0.5368 / 0.6872]] | [[file:result/reuters5_fgvm_eps50.html][0.4786 / 0.6085]] | [[file:result/reuters5_fgvm_eps100.html][0.4000 / 0.5111]] |
+
+#+CAPTION: Adversarial text via DeepFool
+#+CAPTION: tab:textadv-deepfool
+| \epsilon  | 20              | 30              | 40              | 50              |
+|-----------+-----------------+-----------------+-----------------+-----------------|
+| IMDB      | [[file:result/imdb_deepfool_eps20.html][0.5569 / 0.8298]] | [[file:result/imdb_deepfool_eps30.html][0.5508 / 0.7225]] | [[file:result/imdb_deepfool_eps40.html][0.5472 / 0.6678]] | [[file:result/imdb_deepfool_eps50.html][0.5453 / 0.6416]] |
+| Reuters-2 | [[file:result/reuters2_deepfool_eps20.html][0.4416 / 0.6766]] | [[file:result/reuters2_deepfool_eps30.html][0.4416 / 0.5236]] | [[file:result/reuters2_deepfool_eps40.html][0.4416 / 0.4910]] | [[file:result/reuters2_deepfool_eps50.html][0.4416 / 0.4715]] |
+| Reuters-5 | [[file:result/reuters5_deepfool_eps20.html][0.1163 / 0.4034]] | [[file:result/reuters5_deepfool_eps30.html][0.1162 / 0.2222]] | [[file:result/reuters5_deepfool_eps40.html][0.1162 / 0.1641]] | [[file:result/reuters5_deepfool_eps50.html][0.1162 / 0.1402]] |
+
+* Reference                                                          :ignore:
+
+#+BIBLIOGRAPHY: nn.bib plain limit:t option:-nokeywords

@@ -1,0 +1,32 @@
+$hot: hsl(0, 100%, 90%);
+
+.hot {
+    background: $hot;
+    padding: 1px 3px;
+}
+
+.sample>div {
+    float: left;
+}
+
+.sample {
+    margin: 10px auto;
+    overflow: auto;
+    clear: both;
+}
+
+div.clean {
+    width: 46%;
+}
+
+div.label {
+    width: 4%;
+}
+
+div.wmd {
+    width: 4%;
+}
+
+div.adversarial {
+    width: 46%;
+}
