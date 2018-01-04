@@ -1,3 +1,5 @@
 *.txt
 *.html
+*.bib
+build
 node_modules
