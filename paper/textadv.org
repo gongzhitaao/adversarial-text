@@ -1,0 +1,657 @@
+#+TITLE: Adversarial Texts with Gradient Methods
+#+AUTHOR: Zhitao Gong, Wenlu Wang, Bo Li, Dawn Song, Wei-Shinn Ku
+
+#+STARTUP: overview
+#+OPTIONS: toc:nil num:t ^:{}
+#+OPTIONS: author:nil title:nil date:nil
+
+#+LATEX_CLASS: IEEEtran
+#+LATEX_CLASS_OPTIONS: [conference,letter,10pt,final,dvipsnames]
+
+#+LATEX_HEADER: \usepackage{booktabs}
+#+LATEX_HEADER: \usepackage[inline]{enumitem}
+#+LATEX_HEADER: \usepackage{xcolor}
+#+LATEX_HEADER: \usepackage[backend=biber]{biblatex}
+#+LATEX_HEADER: \usepackage{multirow}
+#+LATEX_HEADER: \usepackage{subcaption}
+#+LATEX_HEADER: \usepackage[activate={true,nocompatibility},final,tracking=true,kerning=true,spacing=basictext,factor=1100,stretch=10,shrink=10]{microtype}
+
+#+LATEX_HEADER: \addbibresource{~/.local/data/bibliography/nn.bib}
+#+LATEX_HEADER: \DeclareMathOperator{\sign}{sign}
+
+# title and author
+#+BEGIN_EXPORT latex
+% This is the real title appearing in the final PDF
+\title{Adversarial Texts with Gradient Methods}
+
+\author{
+\IEEEauthorblockN{
+  Zhitao Gong\IEEEauthorrefmark{1},
+  Wenlu Wang\IEEEauthorrefmark{1},
+  Bo Li\IEEEauthorrefmark{2},
+  Dawn Song\IEEEauthorrefmark{2},
+  Wei-Shinn Ku\IEEEauthorrefmark{1}}
+
+\IEEEauthorblockA{\IEEEauthorrefmark{1}
+  \texttt{\{gong,wenluwang,weishinn\}@auburn.edu}\\
+  Auburn University, Auburn, AL, USA}
+\IEEEauthorblockA{\IEEEauthorrefmark{2}
+  \texttt{\{crystalboli,dawnsong\}@berkeley.edu}\\
+  University of California, Berkeley, Berkeley, CA, USA}
+}
+#+END_EXPORT
+
+#+LaTeX: \maketitle
+
+* Abstract                                                           :ignore:
+
+#+BEGIN_abstract
+Adversarial samples for images have been extensively studied in the literature.
+Among many of the attacking methods, gradient-based methods are both effective
+and easy to compute.  In this work, we propose a framework to adapt the gradient
+attacking methods on images to text domain.  The main difficulties for
+generating adversarial texts with gradient methods are:
+#+BEGIN_EXPORT latex
+\begin{enumerate*}[label=(\roman*)]
+ \item the input space is discrete, which makes it difficult to accumulate small
+ noise directly in the inputs, and
+ \item the measurement of the quality of the adversarial texts is difficult.
+\end{enumerate*}
+#+END_EXPORT
+We tackle the first problem by searching for adversarials in the embedding space
+and then reconstruct the adversarial texts via nearest neighbor search.  For the
+latter problem, we employ the Word Mover's Distance (WMD) to quantify the
+quality of adversarial texts.  Through extensive experiments on three datasets,
+IMDB movie reviews, Reuters-2 and Reuters-5 newswires, we show that our
+framework can leverage gradient attacking methods to generate very high-quality
+adversarial texts that are only a few words different from the original texts.
+There are many cases where we can change one word to alter the label of the
+whole piece of text.  We successfully incorporate FGM and DeepFool into our
+framework.  In addition, we empirically show that WMD is closely related to the
+quality of adversarial texts.
+#+END_abstract
+
+* Introduction
+:PROPERTIES:
+:CUSTOM_ID: sec:introduction
+:END:
+
+It has been shown that carefully crafted noise may trick the deep neural
+networks into wrong predictions with very high
+confidence cite:szegedy2013-intriguing.  Many followup work proposed cheap yet
+effective methods to find such adversarial noise, e.g., fast gradient method
+(FGM) cite:goodfellow2014-explaining, Jacobian-based saliency map approach
+(JSMA) cite:papernot2015-limitations,
+DeepFool cite:moosavi-dezfooli2015-deepfool, CW cite:carlini2016-towards, etc.
+We have seen that the investigation of adversarial samples for image models has
+provided us new perspectives to understand the mechanism of deep neural
+networks, e.g., linear hypothesis cite:goodfellow2014-explaining, rethinking
+smoothness assumptions cite:szegedy2013-intriguing.  In addition, many
+algorithms have been proposed to enhance the robustness of the deep models,
+e.g., adversarial training cite:kurakin2016-adversarial.  However, most of the
+previous work focused on images.  Only a few attempts have been made in text
+domain.  We think it is worthwhile to investigate adversarial samples for text
+models as well.  In this work, we propose a simple and effective framework to
+adapt the adversarial attacking methods for images to text domain.
+Specifically, we focus on gradient-based method since they are very fast in
+practice.  There are two major problems we need to resolve before we can plugin
+the gradient based methods for generating adversarial images.
+1. The input space is discrete.  As a result, it is not possible to accumulate
+   small noise computed with gradient methods directly in the input space.  They
+   work well in image domain since image models usually take input in a
+   continuous domain \([0, 1]\).
+2. It is difficult to quantify the quality of adversarial texts.  For
+   adversarial images, we usually utilize \(p\)-norm distance, perceptual
+   distance cite:li2002-dpf, etc.  While for adversarial texts, there are no
+   good metrics to measure the quality.
+
+In this work, we propose a general framework in which we generate adversarial
+texts via slightly modified gradient-based attacking methods.  We first search
+for adversarials in the text embedding space cite:mikolov2013-efficient via
+gradient-based methods and then reconstruct the adversarial texts via nearest
+neighbor search.  In addition, we also empirically evaluate using Word Mover's
+Distance (WMD) cite:kusner2015-from as a quality measurement for the adversarial
+texts.  The advantage of our framework is that no manual features are needed.
+
+This paper is organized as follows.  We briefly review recent work on generating
+adversarial images and texts in Section ref:sec:related-work.  Our adversarial
+text framework is detailed in Section ref:sec:our-method.  We evaluate our
+method on various text benchmarks and report the results in
+Section ref:sec:experiment.  We conclude this paper and provide directions for
+future work in Section ref:sec:conclusion.
+
+* Related Work
+:PROPERTIES:
+:CUSTOM_ID: sec:related-work
+:END:
+
+The existence of adversarial samples was first discussed
+in cite:szegedy2013-intriguing.  There has been an abundance of work on
+attacking methods to generate adversarial images.  These adversarial images
+raise security concerns about the wide application of deep neural
+networks cite:kurakin2016-adversarial.  As a result, many work have investigated
+defense against these adversarial samples.  However, so far as we see in
+literature, the attacking is much easier and cheaper than defense.
+
+For notation, \(x\) denotes the input, \(y\) the prediction, \(f\) the target
+model such that \(y = f(x)\), \(L\) the loss function, \(x^*\) the adversarial
+sample.  \(\|\cdot\|_p\) denotes the \(p\)-norm.  We slightly abuse the notation
+here, \(L_x\) denotes the loss with \(x\) as the input.
+
+The attacking methods mainly fall into three categories, /gradient attack/,
+/optimization attack/ and /model attack/.  Generally speaking, gradient attack
+is faster than the others.  However, the other two require much less knowledge
+about the model, thus more practical.  In addition, optimization attacks are
+usually more effective and generate more subtle noise.
+
+#+ATTR_LaTeX: :width \linewidth
+#+CAPTION: Random MNIST adversarial images generated via different attacking algorithms.  The upper image in /Clean/ column is the original clean image.   The upper images in the following columns are adversarial images generated by the corresponding attacking algorithm based on the first clean image, respectively.  The lower image in each column is the difference between the adversarial image and the clean image, illustrated in heatmap.  Below each column is the label predicted by the target model, along with probability in parenthesis.
+#+NAME: fig:mnistdemo
+[[file:img/imgdemo.pdf]]
+
+** Adversarial Image Method
+:PROPERTIES:
+:CUSTOM_ID: subsec:adversarial-image
+:END:
+
+*** Gradient Attack
+:PROPERTIES:
+:CUSTOM_ID: subsec:gradient-attack
+:END:
+
+This class of attacking methods rely on target model gradients, thus requiring
+full knowledge of the target model.  Fast gradient method
+(FGM) cite:goodfellow2014-explaining and its variants, iterative FGM and
+targeted FGM cite:kurakin2016-adversarial, add to the whole image the noise that
+is proportional to either \(\nabla L_x\) (FGVM) or \(\sign(\nabla L_x)\) (FGSM).
+Jacobian-based saliency map approach (JSMA) cite:papernot2015-limitations, on
+the contrary, perturbs one pixel at a time.  It chooses the pixel with the
+highest saliency score, which is calculated as \(-\nabla y_t\cdot\nabla y_o\)
+subject to \(\nabla y_t > 0\), where \(y_t\) is the probability for the target
+class, and \(y_o\) is the sum of probabilities of all other classes.
+Intuitively, JSMA tries to increase the probability of the target class while
+decreasing others.  DeepFool cite:moosavi-dezfooli2015-deepfool iteratively
+finds the optimal direction in which we need to /travel/ the minimum distance to
+cross the decision boundary of the target model.  Although in non-linear case,
+the optimality is not guaranteed, in practice, however, DeepFool usually finds
+very subtle noise compared to other gradient methods.
+
+Figure ref:fig:mnistdemo shows adversarial image examples of four gradient
+methods on MNIST.  As we can see, FGSM tends to generate more salient noise
+spread across the whole image.  On the other hand, FGVM is slightly better since
+it uses gradients instead of the sign of gradients as noise.  In practice, most
+of the absolute values of gradients are far less that 1.  JSMA, on the contrary,
+increases the intensity of the most salient pixel until its value goes beyond
+the input domain.  As a result, we expect to see a few very intense spots in the
+image.  DeepFool, as shown in the last image, generates the most subtle noise.
+
+*** Optimization Attack
+:PROPERTIES:
+:CUSTOM_ID: subsec:optimization-attack
+:END:
+
+This class of attacks is usually black-box attacks, using the target model only
+as an oracle.  Generally speaking, this class minimizes \(\|x^* - x\|_p\)
+subject to \(f(x^*)\neq f(x)\) and \(x^*\) is in the input domain.  Following
+this formulation, this is a box-constrained optimization problem, L-BFGS is used
+in cite:szegedy2013-intriguing to solve it.  In order to utilize more
+optimization methods, CW cite:carlini2016-towards proposes a refinement of the
+above formulation by minimizing \(\|s(x^*) - x\|_p - L_{s(x^*)}\), where \(s\)
+is a squashing function that keeps \(x^*\) within the input domain, e.g.,
+=sigmoid= for images in the domain \([0, 1]\).  Many advance attacking
+algorithms have been proposed based on the optimization formulation.
+cite:moosavi-dezfooli2016-universal shows that, instead of applying different
+noise to each image, it is possible to apply the same noise, i.e., a universal
+perturbation, to different images, such that the resulting images still trick
+the target model in most cases.  The one-pixel attack is also shown to be
+possible cite:su2017-one.
+
+*** Model Attack
+:PROPERTIES:
+:CUSTOM_ID: subsec:model-attack
+:END:
+
+Similar to the optimization attack, this class also formulates the adversarial
+attack as an optimization problem.  The difference is that, instead of
+performing the optimization directly, this class trains a separate model to map
+the input to noise or adversarial samples.  Adversarial transformation network
+(ATN) cite:baluja2017-adversarial trains a separate model \(g\) that minimizes
+\(\beta\|x^*-x\|_p + \|f(x^*)-f(x)\|_{p^\prime}\), where \(g(x) = x^*\).
+cite:zhao2017-generating proposes to first create a mapping between the input
+space and a random noise space, and then search in the noise space for potential
+adversarials which are mapped back to the input space.  To create the mapping
+between input and noise space, the authors propose an autoencoder structure
+which consists of
+#+BEGIN_EXPORT latex
+\begin{enumerate*}
+ \item an encoder \(G\), a generator network that maps the random noise \(z\) to
+ the input \(x\), \(G(z) = x\), and
+ \item a decoder \(I\) (referred to as \textsl{inverter}), another generator
+ network that maps the input to the random noise, \(I(x) = z\).
+\end{enumerate*}
+#+END_EXPORT
+Generative Adversarial Network (GAN) cite:goodfellow2014-generative is used for
+both generator networks.  The whole network is trained end-to-end by minimizing
+the loss \(\mathbb{E}_x\|G(I(z)) - x\|_p + \lambda\mathbb{E}_z\|I(G(x)) -
+z\|_p\).
+
+** Adversarial Text Method
+:PROPERTIES:
+:CUSTOM_ID: subsec:adversarial-text
+:END:
+
+# Should be in experiment section, placed here for typesetting.
+#+BEGIN_EXPORT latex
+\begin{table*}[ht]
+ \caption{\label{tab:acc} Model accuracy under different parameter settings.
+   \(\epsilon\) is the noise scaling factor.  We report two accuracy
+   measurements per parameter setting in the format \(acc_1/acc_2\), where
+   \(acc_1\) is the model accuracy on adversarial embeddings before nearest
+   neighbor search, \(acc_2\) the accuracy on adversarial embeddings that are
+   reconstructed by nearest neighbor search.  In other words, \(acc_2\) is the
+   model accuracy on generated adversarial texts.}
+\centering
+\begin{tabular}{rl*{5}{c}}
+  \toprule
+  Method
+  & Dataset
+  &
+  & \multicolumn{4}{c}{\(acc_1/acc_2\)} \\
+  \midrule
+
+  \multirow{5}{*}{FGSM}
+  &
+  & \(\epsilon\) & 0.40 & 0.35 & 0.30 & 0.25 \\
+  \cmidrule(r){3-7}
+  & IMDB      & & 0.1213 / 0.1334 & 0.1213 / 0.1990 & 0.1213 / 0.4074 & 0.1213 / 0.6770 \\
+  & Reuters-2 & & 0.0146 / 0.6495 & 0.0146 / 0.7928 & 0.0146 / 0.9110 & 0.0146 / 0.9680 \\
+  & Reuters-5 & & 0.1128 / 0.5880 & 0.1128 / 0.7162 & 0.1128 / 0.7949 & 0.1128 / 0.8462 \\
+  \cmidrule(lr){1-7}
+
+  \multirow{5}{*}{FGVM}
+  &
+  & \(\epsilon\) & 15 & 30 & 50 & 100 \\
+  \cmidrule(r){3-7}
+  & IMDB      & & 0.6888 / 0.8538 & 0.6549 / 0.8354 & 0.6277 / 0.8207 & 0.5925 / 0.7964 \\
+  & Reuters-2 & &  0.7747 / 0.7990 & 0.7337 / 0.7538 & 0.6975 / 0.7156 & 0.6349 / 0.6523 \\
+  & Reuters-5 & &  0.5915 / 0.7983 & 0.5368 / 0.6872 & 0.4786 / 0.6085 & 0.4000 / 0.5111\\
+  \cmidrule(lr){1-7}
+
+  \multirow{5}{*}{DeepFool}
+  &
+  & \(\epsilon\) & 20 & 30 & 40 & 50 \\
+  \cmidrule(r){3-7}
+  & IMDB      & & 0.5569 / 0.8298 & 0.5508 / 0.7225 & 0.5472 / 0.6678 & 0.5453 / 0.6416 \\
+  & Reuters-2 & & 0.4416 / 0.6766 & 0.4416 / 0.5236 & 0.4416 / 0.4910 & 0.4416 / 0.4715 \\
+  & Reuters-5 & & 0.1163 / 0.4034 & 0.1162 / 0.2222 & 0.1162 / 0.1641 & 0.1162 / 0.1402 \\
+  \bottomrule
+\end{tabular}
+\end{table*}
+#+END_EXPORT
+
+Almost all the work in the previous section focus on image models.  As we have
+discussed, the main problem to generate adversarial texts are the discrete input
+space and the lack of quality measurement.  The aforementioned model
+attack cite:zhao2017-generating is a viable workaround for the first problem
+since the noise space is smooth.  However, the disadvantage with their method is
+that they do not have an explicit control of the quality of the generated
+adversarial samples.  As we have seen in cite:zhao2017-generating, the generated
+adversarial images on complex dataset usually have large visual changes.
+
+Most work cite:liang2017-deep,samanta2017-towards,jia2017-adversarial on
+attacking text models follow a similar strategy,
+#+BEGIN_EXPORT latex
+\begin{enumerate*}
+ \item first identify the features (characters, words, sentences, etc.) that
+ have the most influence on the prediction, and then
+ \item follow different strategies to perturb these features according to
+ \textsl{manually} constructed perturbation candidates
+\end{enumerate*}
+#+END_EXPORT
+This strategy is similar to JSMA, in which the intensity of the pixel with the
+highest saliency score is increased or decreased.  The Jacobian value \(\nabla
+f\) or the loss gradient \(\nabla L\) are usually employed to construct a
+measurement for the feature importance, e.g., \(\nabla L\) is used in
+cite:liang2017-deep to select important characters and phrases to perturb.  The
+perturbation candidates usually include typos, synonyms, antonyms, frequent
+words in each category, and other task-dependent features.  For example, typos,
+synonyms, and important adverbs and adjectives are used as candidates for
+insertion and replacement in cite:samanta2017-towards.  The strategies to apply
+the perturbation generally include /insertion/, /deletion/, and /replacement/.
+
+A slightly different strategy is used in cite:jia2017-adversarial.  The authors
+add to the samples /manually/ constructed legit distracting sentences, which
+introduce fake information that does not contradict with the samples.  This
+strategy, despite being effective, is not scalable.
+
+In cite:liang2017-deep, the authors attempt applying FGM directly on
+character-level CNN cite:zhang2015-character.  Although the labels of the text
+pieces are altered, the texts are changed to basically random stream of
+characters.
+
+* Our Method
+:PROPERTIES:
+:CUSTOM_ID: sec:our-method
+:END:
+
+As we have discussed, all the previous work on generating adversarial texts rely
+on /manually/ selected and /task-dependent/ features, which is not practical.
+In this section, we propose a general framework that generates high-quality
+adversarial texts without human intervention.
+
+** Discrete Input Space
+:PROPERTIES:
+:CUSTOM_ID: subsec:discrete-input-space
+:END:
+
+The first problem we need to resolve is how we can employ small noise to perturb
+the input.  The general idea is simple.  Instead of working on the raw input
+texts, we first embed these texts to vector space and search for adversarials in
+the embedding space via gradient methods, and then reconstruct the adversarial
+sentences via nearest neighbor search.  Searching for adversarials in the
+embedding space is similar to searching for adversarial images.  To make sure
+that the generated adversarial embeddings are meaningful, i.e., corresponding to
+actual tokens so that we can generate sentences from them, we use nearest
+neighbor search to round the perturbed vectors to nearest meaningful word
+vectors.  The sentence reconstructing process can be seen as a strong
+/denoising/ process.  With appropriate noise scale, we would expect most of the
+words remain unchanged.  This framework builds upon the following observations.
+
+1. The input features (pixels, words) that are relatively more important for the
+   final predictions will receive more noise, while others relatively less
+   noise.  The is actually the core property of the adversarial image attacking
+   methods.  For example, in Figure ref:fig:mnistdemo, usually a subset of the
+   features are perturbed.
+2. The embedded word vectors preserve the subtle semantic relationships among
+   words cite:mikolov2013-efficient,mikolov2013-distributed.  For example,
+   =vec("clothing")= is closer to =vec("shirt")= as =vec("dish")= to
+   =vec("bowl")=, while =vec("clothing")= is far away, in the sense of
+   \(p\)-norm, from =vec("dish")= since they are not semantically
+   related cite:mikolov2013-linguistic.  This property assures that it is more
+   likely to replace the victim words with a semantically related one rather
+   than a random one.
+
+Most of the attacking algorithms that apply to image models are applicable in
+our framework.  In this work, however, we focus on gradient methods since they
+are usually faster.
+
+** Word Mover's Distance (WMD)
+:PROPERTIES:
+:CUSTOM_ID: subsec:wmd
+:END:
+
+The second problem we need to resolve is the choice of quality metric for
+generated adversarial texts, so that we have a scalable way to measure the
+effectiveness of our framework.  We employ the Word Mover's Distance
+(WMD) cite:kusner2015-from as the metric.  WMD measures the dissimilarity
+between two text documents as the minimum amount of distance that the embedded
+words of one document need to /travel/ to reach the embedded words of another
+document.  WMD can be considered as a special case of Earth Mover's Distance
+(EMD) cite:rubner2000-earth.  Intuitively, it quantifies the semantic similarity
+between two text bodies.  In this work, WMD is closely related to the ratio of
+number of words changed to the sentence length.  However, we plan to extend our
+framework with paraphrasing and insertion/deletion, where the sentence length
+may change.  In that case, WMD is more flexible and accurate.
+
+* Experiment
+:PROPERTIES:
+:CUSTOM_ID: sec:experiment
+:END:
+
+# should be in subsec:result-deepfool, placed here for typesetting
+#+ATTR_LaTeX: :float multicolumn :width \textwidth
+#+CAPTION: Adversarial texts generated via DeepFool.  Refer to Section ref:subsec:results for notations and discussions.
+#+NAME: fig:textdemo-deepfool
+[[file:img/deepfool-eps40.pdf]]
+
+We evaluate our framework on three text classification problems.
+Section ref:subsec:dataset details on the data preprocessing.  The adversarial
+attacking algorithms which we use are (FGM) cite:goodfellow2014-explaining and
+DeepFool cite:moosavi-dezfooli2015-deepfool.  We tried JSMA, however, due to the
+mechanism of JSMA, it is not directly applicable in our framework.  We report in
+Section ref:subsec:results the original model accuracy, accuracy on adversarial
+embeddings, and accuracy on reconstructed adversarial texts in our experiment.
+Only a few examples of generated adversarial texts are shown in this paper due
+to the space constraint.  The complete sets of adversarial texts under different
+parameter settings and the code to reproduce the experiment are available on our
+website[fn:1].
+
+Computation-wise, the bottleneck in our framework is the nearest neighbor
+search.  Word vector spaces, such as GloVe cite:pennington2014-glove, usually
+have millions or billions of tokens embedded in very high dimensions.  The
+vanilla nearest neighbor search is almost impractical.  Instead, we employ the
+an approximate nearest neighbor (ANN) technique in our experiment.  The ANN
+implementation which we use in our experiment is Approximate Nearest Neighbors
+Oh Yeah (=annoy=)[fn:2], which is well integrated into =gensim=
+cite:rek2010-software package.
+
+** Dataset
+:PROPERTIES:
+:CUSTOM_ID: subsec:dataset
+:END:
+
+We use three text datasets in our experiments.  The datasets are summarized in
+Table ref:tab:datasets.  The last column shows our target model accuracy on
+clean test data.
+
+#+ATTR_LaTeX: :booktabs t :width \linewidth
+#+CAPTION: Dataset Summary
+#+NAME: tab:datasets
+| Dataset   | Labels | Training | Testing | Max Length | Accuracy |
+|-----------+--------+----------+---------+------------+----------|
+| IMDB      |      2 |    25000 |   25000 |        400 |   0.8787 |
+| Reuters-2 |      2 |     3300 |    1438 |        160 |   0.9854 |
+| Reuters-5 |      5 |     1735 |     585 |        350 |   0.8701 |
+
+*** IMDB Movie Reviews
+:PROPERTIES:
+:CUSTOM_ID: subsec:data-imdb
+:END:
+
+This is a dataset for binary sentiment classification cite:maas2011-learning.
+It contains a set of 25,000 highly polar (positive or negative) movie reviews
+for training, and 25,000 for testing.  No special preprocessing is used for this
+dataset except that we truncate/pad all the sentences to a fixed maximum
+length, 400.  This max length is chosen empirically.
+
+*** Reuters
+:PROPERTIES:
+:CUSTOM_ID: subsec:data-reuters
+:END:
+
+This is a dataset of 11,228 newswires from Reuters, labeled over 90 topics.  We
+load this dataset through the NLTK cite:bird2009-natural package.  The raw
+Reuters dataset is highly unbalanced.  Some categories contain over a thousand
+samples, while others may contain only a few.  The problem with such highly
+unbalanced data is that the texts that belong to under-populated categories are
+almost always get classified incorrectly.  Even though our model may still
+achieve high accuracy with 90 labels, it would be meaningless to include these
+under-populated categories in the experiment since we are mainly interested in
+perturbation of those samples that are already being classified correctly.
+Keras[fn:3] uses 46 categories out of 90.  However, the 46 categories are still
+highly unbalanced.  In our experiment, we preprocess Reuters and extract two
+datasets from it.
+
+**** Reuters-2
+:PROPERTIES:
+:CUSTOM_ID: subsec:data-reuters-2
+:END:
+
+It contains two most populous categories, i.e., =acq= and =earn=.  The =acq=
+category contains 1650 training samples and 719 test samples.  Over 71%
+sentences in the =acq= category have less than 160 tokens.  The =earn= category
+contains 2877 training samples and 1087 test samples.  Over 83% sentences in
+=earn= category have less then 160 tokens.  In order to balance the two
+categories, for =earn=, we use 1650 samples out of 2877 for training, and 719
+for testing.  The maximum sentence length of this binary classification dataset
+is set to 160.
+
+**** Reuters-5
+:PROPERTIES:
+:CUSTOM_ID: subsec:data-reuters-5
+:END:
+
+It contains five categories, i.e., =crude=, =grain=, =interest=, =money-fx= and
+=trade=.  Similar to Reuters-2, we balance the five categories by using 347
+examples (the size of =interest= categories) for each category during training,
+and 117 each for testing.  The maximum sentence length is set to 350.
+
+# should be in subsec:result-fgm, placed here for typesetting
+#+ATTR_LaTeX: :float multicolumn :width \textwidth
+#+CAPTION: Adversarial texts generated via FGSM.  Refer to Section ref:subsec:results for notations and discussions.
+#+NAME: fig:textdemo-fgsm
+[[file:img/fgsm-eps35.pdf]]
+
+** Embedding
+:PROPERTIES:
+:CUSTOM_ID: subsec:embedding
+:END:
+
+Our framework relies heavily on the /size/ and /quality/ of the embedding space.
+More semantic alternatives would be helpful to improve the quality of generated
+adversarial texts.  As a result, we use the GloVe cite:pennington2014-glove
+pre-trained embedding in our experiment.  Specifically, we use the largest GloVe
+embedding, =glove.840B.300d=, which embeds 840 billion tokens (approximately 2.2
+million cased vocabularies) into a vector space of 300 dimensions.  The value
+range of the word vectors are roughly \((-5.161, 5.0408)\).
+
+** Model
+:PROPERTIES:
+:CUSTOM_ID: subsec:model
+:END:
+
+In this work, we focus on feedforward architectures.  Specifically, we use CNN
+model for the classification tasks.  The model structure is summarized in
+Figure ref:fig:model-imdb.
+
+#+ATTR_LaTeX: :width \linewidth :placement [!ht]
+#+CAPTION: CNN model for text classification.
+#+NAME: fig:model-imdb
+[[file:img/model-imdb.pdf]]
+
+Where \(B\) denotes batch size, \(L\) the maximum sentence length, \(D\) the
+word vector space dimension.  In our experiment, we have \(B=128\), and
+\(D=300\) since we are using the pre-trained embedding =glove.840B.300d=.
+
+Note that for models trained for binary classification tasks, DeepFool assumes
+the output in the range \([-1, 1]\), instead of \([0, 1]\).  Thus we have two
+slightly different models for each of the binary classification task (IMDB and
+Reuters-2), one with =sigmoid= output, and the other with =tanh=.  The model
+with =tahn= output is trained with Adam cite:kingma2014-adam by minimizing the
+mean squared error (MSE), while all the other models are trained with Adam by
+minimizing the cross-entropy loss.  Despite the small difference in
+architecture, =sigmoid=- and =tanh=-models on the same task have almost
+identical accuracy.  As a result, in Table ref:tab:datasets, we report only one
+result for IMDB and Reuters-2.
+
+All our models have \(N=256\) and \(M=512\), except for the one with =tanh=
+output on the IMDB classification task, in which we have \(N=128\) and
+\(M=256\).  The reason that we change to a smaller model is that the larger one
+always gets stuck during the training.  We are not yet clear what causes this
+problem and why a smaller model helps.
+
+** Results
+:PROPERTIES:
+:CUSTOM_ID: subsec:results
+:END:
+
+The model accuracy on adversarial embeddings before and after the nearest
+neighbor search under different parameter settings are summarized in
+Table ref:tab:acc.
+
+In the adversarial text examples, to aid reading, we omit the parts that are not
+changed, denoted by \textbf{[\(\boldsymbol\ldots\)]} in the texts.  The
+"(\textsc{IMDB})" at the end of each clean text piece denotes the dataset that
+this piece of text belongs to.  In addition to Word Mover's Distance (WMD), we
+also report the change rate, \(\frac{n}{L}\), where \(n\) is the number of
+changed words, \(L\) the sentence length.  The corresponding changed words are
+\colorbox{red!10}{highlighted} in the figures.
+
+*** Fast Gradient Method
+:PROPERTIES:
+:CUSTOM_ID: subsec:result-fgm
+:END:
+
+#+ATTR_LaTeX: :float multicolumn :width \textwidth
+#+CAPTION: Adversarial texts generated via FGVM.  Refer to Section ref:subsec:results for notations and discussions.
+#+NAME: fig:textdemo-fgvm
+[[file:img/fgvm-eps50.pdf]]
+
+We first evaluate two versions of FGM, i.e., FGSM and FGVM.  Their example
+results are shown in Figure ref:fig:textdemo-fgsm and
+Figure ref:fig:textdemo-fgvm, respectively.  For FGVM, it was proposed in
+cite:miyato2015-distributional to use \(\frac{\nabla L}{\|\nabla L\|_2}\) to
+FGVM usually needs much larger noise scaling factor since most gradients are
+close to zero.
+
+*** DeepFool
+:PROPERTIES:
+:CUSTOM_ID: subsec:result-deepfool
+:END:
+
+Adversarial examples are shown in Figure ref:fig:textdemo-deepfool.  We
+experiment with different overshoot values (also denoted as \epsilon in the
+table).  Usually, for images, we tend to use very small overshoot values, e.g.,
+1.02, which creates just enough noise to cross the decision boundary.  However,
+in our framework, the reconstructing process is a very strong denoising process,
+where much of the subtle noise will be smoothed.  To compensate for this, we
+experiment with very large overshoot values.  In practice, this works very well.
+As we can see, labels are altered by replacing just one word in many cases.
+
+** Discussion
+:PROPERTIES:
+:CUSTOM_ID: subsec:discussion
+:END:
+
+In contrary to the experiment in cite:liang2017-deep, our framework generates
+much better adversarial texts with gradient methods.  One main reason is that
+the embedding space preserves semantic relations among tokens.
+
+Based on the generated text samples, DeepFool generates the adversarial texts
+with the highest quality.  Our experiment confirms that the DeepFool's strategy
+to search for the optimal direction is still effective in text models.  On the
+other hand, the strong denoising process will help to smooth unimportant noise.
+FGVM is slightly better than FGSM, which is quite similar to what we saw in
+Figure ref:fig:mnistdemo.  By using \(\sign\nabla L\), FGSM applies the same
+amount of noise to every feature it finds to be important, which ignores the
+fact that some features are more important than others.  Since FGVM does not
+follow the optimal direction as DeepFool does, it usually needs larger
+perturbation.  In other words, compared to DeepFool, FGVM may change more words
+in practice.
+
+* Conclusion
+:PROPERTIES:
+:CUSTOM_ID: sec:conclusion
+:END:
+
+In this work, we proposed a framework to adapt image attacking methods to
+generate high-quality adversarial texts in an end-to-end fashion, without
+relying on any manually selected features.  In this framework, instead of
+constructing adversarials directly in the raw text space, we first search for
+adversarial embeddings in the embedding space, and then reconstruct the
+adversarial texts via nearest neighbor search.  We demonstrate the effectiveness
+of our method on three texts benchmark problems.  In all experiments, our
+framework can successfully generate adversarial samples with only a few words
+changed.  In addition, we also empirically demonstrate Word Mover's Distance
+(WMD) as a valid quality measurement for adversarial texts.  In the future, we
+plan to extend our work in the following directions.
+1. WMD is demonstrated to be a viable quality metric for the generated
+   adversarial texts.  We can employ the optimization and model attacking
+   methods by minimizing the WMD.
+2. We use a general embedding space in our experiments.  A smaller embedding
+   that is trained on the specific task may help to speed up the computation
+   needed to reconstruct the texts.
+
+* Reference                                                          :ignore:
+
+#+LaTeX: \printbibliography
+
+* Footnotes
+
+[fn:1] [[http://gongzhitaao.org/adversarial-text]]
+
+[fn:2] https://github.com/spotify/annoy
+
+[fn:3] https://keras.io/
+
+[fn:4] http://www.daviddlewis.com/resources/testcollections/reuters21578/

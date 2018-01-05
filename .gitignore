@@ -1,8 +1,2 @@
-auto
-*.el
-out
+build
 tmp
-scratch.py
-old
-*.pdf
-*.tex

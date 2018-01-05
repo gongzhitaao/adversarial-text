@@ -1,0 +1,54 @@
+\documentclass[dvipsnames,crop,tikz,border=1px]{standalone}
+\usepackage{xcolor}
+\usepackage{amsmath}
+%\usepackage{lmodern}
+%\SetSymbolFont{letters}{bold}{OML}{cmbr}{bx}{it}
+\renewcommand{\familydefault}{\sfdefault}
+
+\newcommand{\data}[1]{\quad(\textsc{#1})}
+\newcommand{\ellipsis}{\textbf{[\(\boldsymbol\ldots\)]}}
+\newcommand{\hl}[1]{\colorbox{red!10}{#1}}
+
+\usetikzlibrary{matrix,arrows,positioning,scopes,shapes}
+
+\begin{document}
+\begin{tikzpicture}
+ \matrix[matrix of nodes,every nodes/.style={rectangle},
+ row 1/.style={nodes={anchor=center,align=center,font=\bf}},
+ row 2/.style={nodes={anchor=north,minimum height=1.5cm}},
+ row 3/.style={nodes={anchor=north,minimum height=1.5cm}},
+ row 4/.style={nodes={anchor=north,minimum height=1.5cm}},
+ column 1/.style={nodes={text width=9.4cm}},
+ column 2/.style={nodes={text centered, text width=1.5cm}},
+ column 3/.style={nodes={text centered, text width=1.5cm}},
+ column 4/.style={nodes={text width=9.4cm}}] {
+   {Clean Text} & {Label} & {WMD\\(\(\boldsymbol{n/L}\))} & {Adversarial Text} \\
+
+   {Quick summary of the book : \ellipsis{} The book was n't bad , but was
+     sooooooo \hl{clich\'e} \(<\) br / \(>\) \(<\) br / \(>\) Now about the
+     movie \ellipsis{} \data{IMDB}}
+   & {0\(\to\)1}
+   & {0.0317 (0.0050)}
+   & {Quick summary of the book : \ellipsis{} The book was n't bad , but was
+     sooooooo \hl{TahitiNut} \(<\) br / \(>\) \(<\) br / \(>\) Now about the
+     movie \ellipsis{}}\\
+
+   {zulchzulu \(<\) SM \(>\) TO OFFER \hl{SPECIAL} \hl{DIVIDEND} Southmark Corp
+     said it will issue its shareholders a special dividend right \ellipsis{}
+     \data{Reuters-2}}
+   & {1\(\to\)0}
+   & {0.0817\\(0.0125)}
+   & {zulchzulu \(<\) SM \(>\) TO OFFER \hl{OFFERS} \hl{SHARES} Southmark Corp
+     said it will issue its shareh olders a special dividend right
+     \ellipsis{}}\\
+
+   {U . K . MONEY MARKET GIVEN FURTHER 68 \hl{MLN} STG HELP The Bank of England
+     said it provided the market with a further \ellipsis{} \data{Reuters-5}}
+   & {3\(\to\)2}
+   & {0.0556\\(0.0077)}
+   &{U . K . MONEY MARKET GIVEN FURTHER 68 \hl{ARL} STG HELP The Bank of England
+     said it provided the market with a further \ellipsis{}}\\
+ };
+
+\end{tikzpicture}
+\end{document}
