@@ -18,16 +18,19 @@ const paths = {
   css: {
     src: 'src/**/*.css',
     dest: 'build'
+  },
+  img: {
+    src: 'src/img/*',
+    dest: 'build/img'
   }
 };
 
-$.task('build', $.series(clean, $.parallel(html, css)));
+$.task('build', $.series(clean, $.parallel(html, css, img)));
 $.task('default', $.series('build', serve, watch));
 $.task('publish', $.series('build', publish));
 
-function clean(done) {
-  del(['build']);
-  done();
+function clean() {
+  return del(['build']);
 }
 
 function serve(done) {
@@ -43,6 +46,7 @@ function reload(done) {
 function watch() {
   $.watch(paths.html.src, $.series(html, reload));
   $.watch(paths.css.src, $.series(css, reload));
+  $.watch(paths.img.src, $.series(img, reload));
 }
 
 function html() {
@@ -71,6 +75,12 @@ function css() {
                     require('autoprefixer'),
                     require('cssnano')]))
     .pipe($.dest(paths.css.dest));
+}
+
+function img() {
+  return $.src(paths.img.src)
+    .pipe($changed(paths.img.dest))
+    .pipe($.dest(paths.img.dest));
 }
 
 function publish() {
