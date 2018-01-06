@@ -3,7 +3,7 @@ import os
 import numpy as np
 import tensorflow as tf
 
-from utils.core import train, evaluate
+from utils import train, evaluate
 from utils import Timer
 
 
