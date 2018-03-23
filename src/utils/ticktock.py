@@ -1,13 +1,18 @@
 from timeit import default_timer
 from functools import wraps
+import logging
 
 
 __all__ = ['Timer', 'tick']
 
 
+logger = logging.getLogger(__name__)
+info = logger.info
+
+
 class Timer(object):
-    def __init__(self, msg='Starting.....', timer=default_timer, factor=1,
-                 fmt="------- elapsed {:.4f}s --------"):
+    def __init__(self, msg='timer starts', timer=default_timer, factor=1,
+                 fmt='elapsed {:.4f}s'):
         self.timer = timer
         self.factor = factor
         self.fmt = fmt
@@ -24,7 +29,7 @@ class Timer(object):
         """
         Set the start time
         """
-        print(self.msg)
+        info(self.msg)
         self.start = self()
         return self
 
@@ -33,7 +38,7 @@ class Timer(object):
         Set the end time
         """
         self.end = self()
-        print(str(self))
+        info(str(self))
 
     def __repr__(self):
         return self.fmt.format(self.elapsed)
@@ -56,6 +61,6 @@ def tick(f):
         start = default_timer()
         res = f(*args, **kw)
         end = default_timer()
-        print('---- {0} elapsed: {1:.4f}s ----'.format(f.__name__, end-start))
+        info('{0} elapsed: {1:.4f}s'.format(f.__name__, end-start))
         return res
     return wrapper
