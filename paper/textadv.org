@@ -88,7 +88,7 @@ provided us new perspectives to understand the mechanism of deep neural
 networks, e.g., linear hypothesis cite:goodfellow2014-explaining, rethinking
 smoothness assumptions cite:szegedy2013-intriguing.  In addition, many
 algorithms have been proposed to enhance the robustness of the deep models,
-e.g., adversarial training cite:kurakin2016-adversarial.  However, most of the
+e.g., adversarial training cite:goodfellow2014-explaining.  However, most of the
 previous work focused on images.  Only a few attempts have been made in text
 domain.  We think it is worthwhile to investigate adversarial samples for text
 models as well.  In this work, we propose a simple and effective framework to
@@ -305,7 +305,7 @@ attacking text models follow a similar strategy,
  \item first identify the features (characters, words, sentences, etc.) that
  have the most influence on the prediction, and then
  \item follow different strategies to perturb these features according to
- \textsl{manually} constructed perturbation candidates
+ \textsl{manually} constructed perturbation candidates.
 \end{enumerate*}
 #+END_EXPORT
 This strategy is similar to JSMA, in which the intensity of the pixel with the
@@ -329,15 +329,24 @@ character-level CNN cite:zhang2015-character.  Although the labels of the text
 pieces are altered, the texts are changed to basically random stream of
 characters.
 
+cite:anonymous2018-adversarial employs a brutal-force way to find perturbation.
+They iteratively replace each word with its nearest neighbor in the embedding
+space until success or a threshold is reached.  The computation is very
+expensive.  A black-box attack based on GAN is proposed cite:wong2017-dancin.  A
+highly related work is also report in cite:ebrahimi2017-hotflip where the
+authors conduct character-level and word-level attack based on gradients.  The
+difference is that we use nearest neighbor search to reconstruct the adversarial
+sentences, while they search for adversarial candidates directly based on
+certain constraints.  Thus the word-level attack was not very successfully in
+cite:ebrahimi2017-hotflip.
+
 * Our Method
 :PROPERTIES:
 :CUSTOM_ID: sec:our-method
 :END:
 
-As we have discussed, all the previous work on generating adversarial texts rely
-on /manually/ selected and /task-dependent/ features, which is not practical.
 In this section, we propose a general framework that generates high-quality
-adversarial texts without human intervention.
+adversarial texts by noise generated via gradient methods.
 
 ** Discrete Input Space
 :PROPERTIES:
@@ -641,6 +650,10 @@ plan to extend our work in the following directions.
 2. We use a general embedding space in our experiments.  A smaller embedding
    that is trained on the specific task may help to speed up the computation
    needed to reconstruct the texts.
+
+* TODO COMMENT Improvement
+
+[[file:~/Dropbox/dotfiles/emacs.d/data/notes/improve-textadv.org]]
 
 * Reference                                                          :ignore:
 
