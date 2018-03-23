@@ -1,4 +1,5 @@
 import os
+import logging
 
 import numpy as np
 import tensorflow as tf
@@ -6,7 +7,8 @@ import tensorflow as tf
 from gensim.models import KeyedVectors
 from gensim.similarities.index import AnnoyIndexer
 
-from utils.core import train, evaluate, predict
+from wordcnn import WordCNN
+from utils import train, evaluate, predict
 from utils import Timer, tick
 
 from attacks import deepfool
@@ -14,6 +16,9 @@ from attacks import deepfool
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
+logging.basicConfig(format='%(asctime)-15s %(message)s', level=logging.INFO)
+logger = logging.getLogger(__name__)
+info = logger.info
 
 DATA = 'imdb'                     # dataset
 ALGO = 'deepfool'                 # attacking method
@@ -30,28 +35,18 @@ EPS = 30                        # deepfool eps
 EPOCHS = 10                     # deepfool epochs
 
 
-def model_fn(x, logits=False, training=False, name='ybar'):
-    with tf.variable_scope('conv'):
-        z = tf.layers.dropout(x, rate=0.2, training=training)
-        z = tf.layers.conv1d(z, filters=128, kernel_size=3, padding='valid')
-        z = tf.maximum(z, 0.2 * z)
-        z = tf.reduce_max(z, axis=1, name='global_max_pooling')
-
-    with tf.variable_scope('flatten'):
-        shape = z.get_shape().as_list()[1:]
-        z = tf.reshape(z, [-1, np.prod(shape)])
-
-    with tf.variable_scope('mlp'):
-        z = tf.layers.dense(z, units=256)
-        z = tf.layers.dropout(z, rate=0.2, training=training)
-        z = tf.maximum(z, 0.2 * z)
-
-    logits_ = tf.layers.dense(z, units=1, name='logits')
-    ybar = tf.tanh(logits_, name=name)
-
-    if logits:
-        return ybar, logits_
-    return ybar
+class Config:
+    def __init__(self):
+        self.embedding = None
+        self.vocab_size = -1
+        self.embedding_dim = 300
+        self.n_classes = 2
+        self.filters = 128
+        self.kernel_size = 3
+        self.units = 512
+        self.seqlen = 300
+        self.prob_fn = tf.sigmoid
+        self.drop_rate = 0.2
 
 
 class Dummy:
@@ -60,35 +55,82 @@ class Dummy:
 
 env = Dummy()
 
-print('\nConstructing graph')
+info('Constructing graph')
 
-with tf.variable_scope('model'):
-    env.x = tf.placeholder(tf.float32, [None, MAXLEN, DIM], 'x')
-    env.y = tf.placeholder(tf.float32, [None, NCLASS], 'y')
-    env.training = tf.placeholder_with_default(False, (), 'mode')
+cfg = Config()
+embedding_file = os.path.expanduser(
+    '~/data/glove/glove.840B.300d.w2v.vectors.npy')
+embedding = np.load(embedding_file)
+cfg.embedding = tf.placeholder(tf.float32, embedding.shape)
+cfg.vocab_size = cfg.embedding.shape[0]
 
-    env.ybar, logits = model_fn(env.x, logits=True, training=env.training)
+env.x = tf.placeholder(tf.int32, [None, cfg.seqlen + 1], 'x')
+env.y = tf.placeholder(tf.float32, [None, 1], 'y')
+env.training = tf.placeholder_with_default(False, (), 'mode')
 
-    env.saver = tf.train.Saver()
+m = WordCNN(cfg)
+env.ybar = m(env.x, env.training)
 
-    with tf.name_scope('acc'):
-        t0 = tf.greater(env.ybar, 0)
-        t1 = tf.greater(env.y, 0)
-        count = tf.equal(t0, t1)
-        env.acc = tf.reduce_mean(tf.cast(count, tf.float32), name='acc')
+# we do not save the embedding here since embedding is not trained.
+env.saver = tf.train.Saver(var_list=m.varlist)
 
-    env.loss = tf.losses.mean_squared_error(labels=env.y,
-                                            predictions=env.ybar,
-                                            scope='loss')
+with tf.variable_scope('acc'):
+    t0 = tf.greater(env.ybar, 0.5)
+    t1 = tf.greater(env.y, 0.5)
+    count = tf.equal(t0, t1)
+    env.acc = tf.reduce_mean(tf.cast(count, tf.float32), name='acc')
+with tf.variable_scope('loss'):
+    xent = tf.nn.sigmoid_cross_entropy_with_logits(labels=env.y,
+                                                   logits=m.logits)
+    env.loss = tf.reduce_mean(xent)
 
-    with tf.name_scope('train_op'):
-        optimizer = tf.train.AdamOptimizer()
-        env.train_op = optimizer.minimize(env.loss)
+with tf.variable_scope('train_op'):
+    optimizer = tf.train.AdamOptimizer()
+    env.train_op = optimizer.minimize(env.loss)
 
-with tf.variable_scope('model', reuse=True):
-    env.adv_epochs = tf.placeholder(tf.int32, (), name='adv_epochs')
-    env.noise = deepfool(model_fn, env.x, epochs=env.adv_epochs, noise=True,
-                         batch=True, clip_min=-10, clip_max=10)
+env.adv_epochs = tf.placeholder(tf.int32, (), name='adv_epochs')
+env.noise = deepfool(m, env.x, epochs=env.adv_epochs, noise=True, batch=True,
+                     clip_min=-10, clip_max=10)
+
+
+with Timer(msg='initialize session'):
+    sess = tf.Session()
+    sess.run(tf.global_variables_initializer(),
+             feed_dict={cfg.embedding: embedding})
+    sess.run(tf.local_variables_initializer())
+    env.sess = sess
+
+with Timer(msg='loading data'):
+    imdb = os.path.expanduser('~/data/imdb/imdb-word-seqlen-{}.npz'
+                              .format(cfg.seqlen))
+    d = np.load(imdb)
+    X_train, y_train = d['X_train'], d['y_train']
+    X_test, y_test = d['X_test'], d['y_test']
+
+    y_train = np.expand_dims(y_train, axis=1)
+    y_test = np.expand_dims(y_test, axis=1)
+
+    ind = np.random.permutation(X_train.shape[0])
+    X_train, y_train = X_train[ind], y_train[ind]
+
+    VALIDATION_SPLIT = 0.1
+    n = int(X_train.shape[0] * VALIDATION_SPLIT)
+    X_valid = X_train[:n]
+    X_train = X_train[n:]
+    y_valid = y_train[:n]
+    y_train = y_train[n:]
+
+info('X_train shape: {}'.format(X_train.shape))
+info('y_train shape: {}'.format(y_train.shape))
+info('X_test shape: {}'.format(X_test.shape))
+info('y_test shape: {}'.format(y_test.shape))
+
+load = True
+train(env, X_train, y_train, X_valid, y_valid, load=load, epochs=10,
+      name='imdb-word-sigm')
+evaluate(env, X_test, y_test)
+
+sess.close()
 
 
 @tick
@@ -114,44 +156,6 @@ def make_deepfool(sess, env, X_data, epochs=1, batch_size=128):
     return X_noise
 
 
-with Timer('\nInitialize session'):
-    sess = tf.InteractiveSession()
-    sess.run(tf.global_variables_initializer())
-    sess.run(tf.local_variables_initializer())
-
-
-with Timer('\nLoading data'):
-    d = np.load(DATAPATH)
-    X_train, y_train = d['X_train'], d['y_train']
-    X_test, y_test = d['X_test'], d['y_test']
-
-    y_train = np.expand_dims(y_train, axis=1).astype(np.float32)
-    y_test = np.expand_dims(y_test, axis=1).astype(np.float32)
-
-    y_train = y_train * 2 - 1
-    y_test = y_test * 2 - 1
-
-    ind = np.random.permutation(X_train.shape[0])
-    X_train, y_train = X_train[ind], y_train[ind]
-
-    VALIDATION_SPLIT = 0.1
-    n = int(X_train.shape[0] * VALIDATION_SPLIT)
-    X_valid = X_train[:n]
-    X_train = X_train[n:]
-    y_valid = y_train[:n]
-    y_train = y_train[n:]
-
-    print('X_train shape: {}'.format(X_train.shape))
-    print('y_train shape: {}'.format(y_train.shape))
-    print('X_test shape: {}'.format(X_test.shape))
-    print('y_test shape: {}'.format(y_test.shape))
-
-
-train(sess, env, X_train, y_train, X_valid, y_valid, load=True, epochs=10,
-      name=MODEL)
-evaluate(sess, env, X_test, y_test)
-
-
 X_noise = make_deepfool(sess, env, X_test, epochs=EPOCHS)
 
 # X_rnd = np.random.random(X_noise.shape) * 2 - 1
@@ -173,6 +177,7 @@ with Timer('\nLoading index'):
     annoy_index.model = w2v
 
 v0 = np.zeros(300)
+
 
 def _nearest(w2v, v, v0=v0):
     if np.allclose(v, v0):
@@ -212,7 +217,7 @@ with Timer('\nQuerying with Annoy'):
                 else:
                     w2 = w1
 
-            X_quant[i, j] = v1;
+            X_quant[i, j] = v1
             org.append(w0)
             cur.append(w1)
             tmp.append(w2)
