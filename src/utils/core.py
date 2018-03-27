@@ -5,7 +5,6 @@ import os
 import logging
 
 import numpy as np
-
 from tqdm import tqdm
 
 from .ticktock import tick
@@ -33,11 +32,11 @@ def train(env, X_data, y_data, X_valid=None, y_valid=None, epochs=1,
 
     info('train model')
 
-    assert hasattr(env, 'train_op')
     assert hasattr(env, 'saver')
+    assert hasattr(env, 'train_op')
+    assert hasattr(env, 'training')
     assert hasattr(env, 'x')
     assert hasattr(env, 'y')
-    assert hasattr(env, 'training')
 
     n_sample = X_data.shape[0]
     n_batch = int((n_sample + batch_size - 1) / batch_size)
@@ -92,8 +91,8 @@ def evaluate(env, X_data, y_data, batch_size=128):
                                              feed_dict=feed_dict)
         loss += batch_loss * batch_size
         acc += batch_acc * batch_size
-    loss /= (batch + 1) * batch_size
-    acc /= (batch + 1) * batch_size
+    loss /= n_batch * batch_size
+    acc /= n_batch * batch_size
 
     info('loss: {0:.4f} acc: {1:.4f}'.format(loss, acc))
     return loss, acc

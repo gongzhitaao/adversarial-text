@@ -54,7 +54,7 @@ class CharModel:
         if not self.build:
             self._build()
         logits = self._add_inference_graph(x, training)
-        y = self.cfg.prob_fn(logits)
+        y = self.cfg.output(logits)
         return y
 
     def __call__(self, x, training=False):

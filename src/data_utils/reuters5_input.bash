@@ -2,7 +2,7 @@
 
 prefix=~/data/reuters/reuters5
 name=reuters5
-seqlen=50
+seqlen=300
 wordlen=5
 n_classes=5
 

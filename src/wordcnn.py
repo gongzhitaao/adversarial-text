@@ -56,7 +56,7 @@ class WordCNN:
     def predict(self, x, training=False):
         self.x_embed = self.embed(x)
         logits = self._inference_from_embedding(self.x_embed, training)
-        y = self.cfg.prob_fn(logits)
+        y = self.cfg.output(logits)
         return y
 
     def predict_from_embedding(self, x_embed, training=False):
@@ -64,7 +64,7 @@ class WordCNN:
             self._build()
         self.x_embed = x_embed
         logits = self._inference_from_embedding(self.x_embed, training)
-        y = self.cfg.prob_fn(logits)
+        y = self.cfg.output(logits)
         return y
 
     def embed(self, x):
