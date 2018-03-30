@@ -24,15 +24,11 @@ def train(env, X_data, y_data, X_valid=None, y_valid=None, epochs=1,
     Train a TF model by running env.train_op.
     """
     assert hasattr(env, 'sess')
+    assert hasattr(env, 'saver')
 
     if load:
-        info('loading saved model')
-        assert hasattr(env, 'saver')
         return env.saver.restore(env.sess, 'model/{}'.format(name))
 
-    info('train model')
-
-    assert hasattr(env, 'saver')
     assert hasattr(env, 'train_op')
     assert hasattr(env, 'training')
     assert hasattr(env, 'x')
@@ -73,8 +69,6 @@ def evaluate(env, X_data, y_data, batch_size=128):
     """
     Evaluate TF model by running env.loss and env.acc.
     """
-    info('evaluating...')
-
     assert hasattr(env, 'sess')
     assert hasattr(env, 'x')
     assert hasattr(env, 'y')
@@ -103,8 +97,6 @@ def predict(env, X_data, batch_size=128):
     """
     Do inference by running env.ybar.
     """
-    info('predicting')
-
     assert hasattr(env, 'sess')
     assert hasattr(env, 'x')
 

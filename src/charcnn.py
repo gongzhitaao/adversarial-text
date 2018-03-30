@@ -6,7 +6,7 @@ import tensorflow as tf
 from highway import Highway
 
 
-class CharModel:
+class CharCNN:
     def __init__(self, cfg):
         self.cfg = cfg
         self.build = False

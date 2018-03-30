@@ -6,7 +6,9 @@ import numpy as np
 import tensorflow as tf
 
 from wordcnn import WordCNN
-from utils import train, evaluate
+
+from utils.core import train, evaluate
+from utils.misc import load_data, build_metric
 
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -80,76 +82,13 @@ def build_graph(cfg):
     # we do not save the embedding here since embedding is not trained.
     env.saver = tf.train.Saver(var_list=m.varlist)
 
-    if cfg.output == tf.sigmoid:
-        y = tf.to_float(env.y)
-        with tf.variable_scope('acc'):
-            t0 = tf.greater(env.ybar, 0.5)
-            t1 = tf.greater(y, 0.5)
-            count = tf.equal(t0, t1)
-            env.acc = tf.reduce_mean(tf.cast(count, tf.float32), name='acc')
-        with tf.variable_scope('loss'):
-            xent = tf.nn.sigmoid_cross_entropy_with_logits(labels=y,
-                                                           logits=m.logits)
-            env.loss = tf.reduce_mean(xent)
-    elif cfg.output == tf.tanh:
-        y = tf.to_float(env.y)
-        with tf.variable_scope('acc'):
-            t0 = tf.greater(env.ybar, 0.0)
-            t1 = tf.greater(y, 0.0)
-            count = tf.equal(t0, t1)
-            env.acc = tf.reduce_mean(tf.cast(count, tf.float32), name='acc')
-        with tf.variable_scope('loss'):
-            env.loss = tf.losses.mean_squared_error(
-                labels=y, predictions=env.ybar,
-                reduction=tf.losses.Reduction.SUM_OVER_BATCH_SIZE)
-    elif cfg.output == tf.nn.softmax:
-        y = tf.one_hot(env.y, cfg.n_classes, on_value=1.0, off_value=0.0)
-        with tf.variable_scope('acc'):
-            ybar = tf.argmax(env.ybar, axis=1, output_type=tf.int32)
-            count = tf.equal(tf.reshape(env.y, [-1]), ybar)
-            env.acc = tf.reduce_mean(tf.cast(count, tf.float32), name='acc')
-        with tf.variable_scope('loss'):
-            xent = tf.nn.softmax_cross_entropy_with_logits_v2(labels=y,
-                                                              logits=m.logits)
-            env.loss = tf.reduce_mean(xent)
-    else:
-        raise ValueError('Unknown output function')
+    env = build_metric(env, cfg)
 
     with tf.variable_scope('train_op'):
         optimizer = tf.train.AdamOptimizer()
         env.train_op = optimizer.minimize(env.loss)
 
     return env
-
-
-def load_data(data, bipolar):
-    d = np.load(data)
-    X_train, y_train = d['X_train'], d['y_train']
-    X_test, y_test = d['X_test'], d['y_test']
-
-    y_train = np.expand_dims(y_train, axis=1)
-    y_test = np.expand_dims(y_test, axis=1)
-
-    if bipolar:
-        y_train = 2 * y_train - 1
-        y_test = 2 * y_test - 1
-
-    ind = np.random.permutation(X_train.shape[0])
-    X_train, y_train = X_train[ind], y_train[ind]
-
-    VALIDATION_SPLIT = 0.1
-    n = int(X_train.shape[0] * VALIDATION_SPLIT)
-    X_valid = X_train[:n]
-    X_train = X_train[n:]
-    y_valid = y_train[:n]
-    y_train = y_train[n:]
-
-    info('X_train shape: {}'.format(X_train.shape))
-    info('y_train shape: {}'.format(y_train.shape))
-    info('X_test shape: {}'.format(X_test.shape))
-    info('y_test shape: {}'.format(y_test.shape))
-
-    return (X_train, y_train), (X_test, y_test), (X_valid, y_valid)
 
 
 def main(args):

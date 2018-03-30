@@ -5,8 +5,10 @@ import argparse
 import numpy as np
 import tensorflow as tf
 
-from wordcnn import WordCNN
-from utils import train, evaluate
+from charcnn import CharCNN
+
+from utils.core import train, evaluate
+from utils.misc import load_data, build_metric
 
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -17,7 +19,7 @@ info = logger.info
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Classify text with WordCNN')
+    parser = argparse.ArgumentParser(description='Classify text with CharCNN')
     parser.add_argument('--batch_size', metavar='N', type=int, default=64)
     parser.add_argument('--data', metavar='FILE', type=str, required=True)
     parser.add_argument('--drop_rate', metavar='N', type=float, default=0.2)
@@ -33,6 +35,7 @@ def parse_args():
     parser.add_argument('--n_classes', metavar='N', type=int, required=True)
     parser.add_argument('--name', metavar='MODEL', type=str)
     parser.add_argument('--seqlen', metavar='N', type=int, default=300)
+    parser.add_argument('--vocab_size', metavar='N', type=int, default=128)
     parser.add_argument('--wordlen', metavar='N', type=int, required=True)
 
     bip = parser.add_mutually_exclusive_group(required=True)
@@ -50,6 +53,7 @@ def config(args, embedding):
         pass
     cfg = _Dummy()
 
+    cfg.batch_size = args.batch_size
     cfg.drop_rate = args.drop_rate
     cfg.embedding_dim = args.embedding_dim
     cfg.feature_maps = args.feature_maps
@@ -63,9 +67,9 @@ def config(args, embedding):
     cfg.wordlen = args.wordlen
 
     cfg.charlen = (cfg.seqlen * (cfg.wordlen
-                                      + 2         # start/end of word symbol
-                                      + 1)        # whitespace between tokens
-                        + 1)                      # end of sentence symbol
+                                 + 2         # start/end of word symbol
+                                 + 1)        # whitespace between tokens
+                   + 1)                      # end of sentence symbol
 
     if args.n_classes > 2:
         cfg.output = tf.nn.softmax
@@ -84,22 +88,13 @@ def build_graph(cfg):
     env = _Dummy()
 
     env.x = tf.placeholder(tf.int32, [cfg.batch_size, cfg.charlen], 'x')
-    env.y = tf.placeholder(tf.float32, [cfg.batch_size, 1], 'y')
+    env.y = tf.placeholder(tf.int32, [cfg.batch_size, 1], 'y')
     env.training = tf.placeholder_with_default(False, (), 'mode')
 
     m = CharCNN(cfg)
     env.ybar = m.predict(env.x, env.training)
-    env.savor = tf.train.Saver()
-
-    with tf.variable_scope('acc'):
-        t0 = tf.greater(env.ybar, 0.5)
-        t1 = tf.greater(env.y, 0.5)
-        count = tf.equal(t0, t1)
-        env.acc = tf.reduce_mean(tf.cast(count, tf.float32), name='acc')
-    with tf.variable_scope('loss'):
-        xent = tf.nn.sigmoid_cross_entropy_with_logits(labels=env.y,
-                                                       logits=m.logits)
-        env.loss = tf.reduce_mean(xent)
+    env.saver = tf.train.Saver()
+    env = build_metric(env, cfg)
 
     with tf.variable_scope('train_op'):
         optimizer = tf.train.AdamOptimizer()
@@ -108,35 +103,9 @@ def build_graph(cfg):
     return env
 
 
-def load_data(data):
-    d = np.load(data)
-    X_train, y_train = d['X_train'], d['y_train']
-    X_test, y_test = d['X_test'], d['y_test']
-
-    y_train = np.expand_dims(y_train, axis=1)
-    y_test = np.expand_dims(y_test, axis=1)
-
-    ind = np.random.permutation(X_train.shape[0])
-    X_train, y_train = X_train[ind], y_train[ind]
-
-    VALIDATION_SPLIT = 0.1
-    n = int(X_train.shape[0] * VALIDATION_SPLIT)
-    X_valid = X_train[:n]
-    X_train = X_train[n:]
-    y_valid = y_train[:n]
-    y_train = y_train[n:]
-
-    info('X_train shape: {}'.format(X_train.shape))
-    info('y_train shape: {}'.format(y_train.shape))
-    info('X_test shape: {}'.format(X_test.shape))
-    info('y_test shape: {}'.format(y_test.shape))
-
-    return (X_train, y_train), (X_test, y_test), (X_valid, y_valid)
-
-
 def main(args):
     info('loading embedding vec')
-    embedding = np.load(os.path.expanduser(args.embedding))
+    embedding = np.eye(args.vocab_size).astype(np.float32)
 
     info('constructing config')
     cfg = config(args, embedding)
@@ -153,7 +122,7 @@ def main(args):
 
     info('loading data')
     (X_train, y_train), (X_test, y_test), (X_valid, y_valid) = load_data(
-        os.path.expanduser(args.data))
+        os.path.expanduser(args.data), args.bipolar)
 
     info('training model')
     train(env, X_train, y_train, X_valid, y_valid, load=False,
