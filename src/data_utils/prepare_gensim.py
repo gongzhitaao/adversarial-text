@@ -53,7 +53,7 @@ def build_annoy(w2v):
     annoy_index.save(annoy_file)
 
 # extend_glove()
-build_word2vec()
+# build_word2vec()
 
 info('loading model')
 model = KeyedVectors.load(w2v_model)
@@ -62,8 +62,8 @@ info(model)
 info('init sims')
 model.init_sims()
 
-build_annoy(model)
-info('loading index')
+# build_annoy(model)
+info('loading annoy indexer')
 annoy_index = AnnoyIndexer()
 annoy_index.load(annoy_file)
 annoy_index.model = model
@@ -72,10 +72,10 @@ noise = np.random.random([DIM])
 noise = np.zeros(DIM)
 info('querying with Annoy')
 with DisableLogger():
-    val = model.most_similar([noise], topn=3, indexer=annoy_index)
+    val = model.most_similar([noise, noise], topn=3, indexer=annoy_index)
 info(val)
 
 info('querying with gensim')
 with DisableLogger():
-    val = model.most_similar([noise], topn=3)
+    val = model.most_similar([noise, noise], topn=1)
 info(val)

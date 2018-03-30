@@ -1,6 +1,6 @@
 #!/bin/bash
 
-seqlen=300
+seqlen=100
 
 python run_wordcnn.py \
        --batch_size 64 \

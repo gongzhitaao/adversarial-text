@@ -87,9 +87,9 @@ function word2index {
 
 # tokenize
 
-# charpad
-# charmerge
-# char2index
+charpad
+charmerge
+char2index
 
 wordpad
 wordmerge
