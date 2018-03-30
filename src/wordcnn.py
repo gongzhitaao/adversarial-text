@@ -62,8 +62,7 @@ class WordCNN:
     def predict_from_embedding(self, x_embed, training=False):
         if not self.build:
             self._build()
-        self.x_embed = x_embed
-        logits = self._inference_from_embedding(self.x_embed, training)
+        logits = self._inference_from_embedding(x_embed, training)
         y = self.cfg.output(logits)
         return y
 
