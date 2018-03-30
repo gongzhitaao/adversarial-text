@@ -4,7 +4,6 @@ import argparse
 
 import numpy as np
 import tensorflow as tf
-from tqdm import tqdm
 
 from wordcnn import WordCNN
 
@@ -36,8 +35,8 @@ def parse_args():
     parser.add_argument('--kernel_size', metavar='N', type=int, default=3)
     parser.add_argument('--n_classes', metavar='N', type=int, required=True)
     parser.add_argument('--name', metavar='MODEL', type=str)
-    parser.add_argument('--output', metavar='FILE', type=str, required=True)
-    parser.add_argument('--sample_ratio', metavar='X', type=float, default=-1)
+    parser.add_argument('--outfile', metavar='FILE', type=str, required=True)
+    parser.add_argument('--samples', metavar='N', type=int, default=-1)
     parser.add_argument('--seqlen', metavar='N', type=int, default=300)
     parser.add_argument('--units', metavar='N', type=int, default=512)
 
@@ -60,14 +59,16 @@ def config(args, embedding):
     cfg.adv_epochs = args.adv_epochs
     cfg.adv_eps = args.adv_eps
     cfg.batch_size = args.batch_size
+    cfg.bipolar = args.bipolar
+    cfg.data = args.data
     cfg.drop_rate = args.drop_rate
     cfg.epochs = args.epochs
     cfg.filters = args.filters
     cfg.kernel_size = args.kernel_size
     cfg.n_classes = args.n_classes
     cfg.name = args.name
-    cfg.output = args.output
-    cfg.sample_ratio = args.sample_ratio
+    cfg.outfile = args.outfile
+    cfg.samples = args.samples
     cfg.seqlen = args.seqlen
     cfg.units = args.units
 
@@ -115,15 +116,13 @@ def build_graph(cfg):
 
 
 def make_deepfool(env, X_data):
-    info('generate deepfool noise')
     batch_size = env.cfg.adv_batch_size
-    epochs = env.cfg.adv_epochs
-    eps = env.cfg.adv_eps
 
     n_sample = X_data.shape[0]
     n_batch = int((n_sample + batch_size - 1) / batch_size)
     X_adv = np.empty_like(X_data)
-    for batch in tqdm(range(n_batch)):
+    for batch in range(n_batch):
+        info('batch {0}/{1}'.format(batch+1, n_batch))
         end = min((batch + 1) * batch_size, n_sample)
         start = end - batch_size
         feed_dict = {env.x: X_data[start:end],
@@ -131,7 +130,7 @@ def make_deepfool(env, X_data):
                      env.adv_eps: env.cfg.adv_eps}
         xadv = env.sess.run(env.xadv, feed_dict=feed_dict)
         X_adv[start:end] = env.re.reverse_embedding(xadv)
-    return X_noise
+    return X_adv
 
 
 def main(args):
@@ -154,30 +153,30 @@ def main(args):
 
     info('loading data')
     (X_train, y_train), (X_test, y_test), (X_valid, y_valid) = load_data(
-        os.path.expanduser(args.data), args.bipolar)
+        os.path.expanduser(cfg.data), cfg.bipolar)
 
     info('training model')
     train(env, X_train, y_train, X_valid, y_valid, load=True,
-          batch_size=args.batch_size, epochs=args.epochs, name=args.name)
+          batch_size=cfg.batch_size, epochs=cfg.epochs, name=cfg.name)
     info('evaluating against clean test samples')
-    evaluate(env, X_test, y_test, batch_size=args.batch_size)
+    evaluate(env, X_test, y_test, batch_size=cfg.batch_size)
 
-    if args.sample_ratio > 0:
-        n = X_test.shape[0]
-        ind = np.random.permutation(n)[:int(n*args.sample_ratio)]
+    if cfg.samples > 0:
+        ind = np.random.permutation(X_test.shape[0])[:cfg.samples]
         X_data, y_data = X_test[ind], y_test[ind]
     else:
         X_data, y_data = X_test, y_test
 
     env.re = ReverseEmbedding(w2v_file='~/data/glove/glove.840B.300d.w2v')
 
-    info('making deepfool adversarial')
+    info('making deepfool adversarial texts')
     X_adv = make_deepfool(env, X_data)
-    evaluate(env, X_adv, y_data, batch_size=args.batch_size)
+    info('evaluating against adversarial texts')
+    evaluate(env, X_adv, y_data, batch_size=cfg.batch_size)
     env.sess.close()
 
-    fname = os.path.join('out', os.path.expanduser(args.output))
-    if args.bipolar:
+    fname = os.path.join('out', cfg.outfile)
+    if cfg.bipolar:
         y_data = (y_data + 1) // 2
     info('saving {}'.format(fname))
     data = np.hstack((y_data, X_adv))

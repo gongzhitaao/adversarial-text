@@ -5,6 +5,7 @@ from gensim.models import KeyedVectors
 from gensim.similarities.index import AnnoyIndexer
 import numpy as np
 import tensorflow as tf
+from tqdm import tqdm
 
 
 __all__ = ['load_data', 'build_metric', 'ReverseEmbedding']
@@ -103,7 +104,7 @@ class ReverseEmbedding:
     def reverse_embedding(self, vec, unk='<unk>'):
         sents = np.empty(vec.shape[:-1], dtype=np.int32)
         with DisableLogger():
-            for i, cur in enumerate(vec):
+            for i, cur in tqdm(enumerate(vec), total=vec.shape[0]):
                 tokens = [self.w2v.most_similar([v], topn=1,
                                                 indexer=self.indexer)[0][0]
                           for v in cur]
