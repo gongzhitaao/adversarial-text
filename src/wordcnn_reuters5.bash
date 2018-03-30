@@ -8,9 +8,9 @@ python run_wordcnn.py \
        --drop_rate 0.2 \
        --embedding ~/data/glove/glove.840B.300d.w2v.vectors.npy \
        --epochs 10 \
-       --filters 512 \
+       --filters 128 \
        --kernel_size 3 \
        --n_classes 5 \
        --name reuters5-word-seqlen-${seqlen} \
        --seqlen ${seqlen} \
-       --units 512
+       --units 128
