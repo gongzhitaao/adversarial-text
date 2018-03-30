@@ -78,6 +78,7 @@ def build_graph(cfg):
 
     m = WordCNN(cfg)
     env.ybar = m.predict(env.x, env.training)
+    env.model = m
 
     # we do not save the embedding here since embedding is not trained.
     env.saver = tf.train.Saver(var_list=m.varlist)
