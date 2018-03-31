@@ -72,18 +72,5 @@ class WordCNN:
         self.x_embed = tf.nn.embedding_lookup(self.embedding, x)
         return self.x_embed
 
-    def reverse_embed(self, x_embed):
-        if not self.build:
-            self._build()
-        if self.normalized_embedding is None:
-            self.normalized_embedding = tf.nn.l2_normalize(self.embedding,
-                                                           axis=1)
-        # [B, L, V] = [B, L, D] x [D, V]
-        dist = tf.tensordot(tf.nn.l2_normalize(x_embed, axis=1),
-                            tf.transpose(self.normalized_embedding), axes=1)
-        # [B, L]
-        token_ids = tf.argmax(dist, axis=1)
-        return token_ids
-
     def __call__(self, x, training=False):
         return self.predict(x, training)

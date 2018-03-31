@@ -30,7 +30,6 @@ def parse_args():
     parser.add_argument('--data', metavar='FILE', type=str, required=True)
     parser.add_argument('--drop_rate', metavar='N', type=float, default=0.2)
     parser.add_argument('--embedding', metavar='FILE', type=str)
-    parser.add_argument('--epochs', metavar='N', type=int)
     parser.add_argument('--filters', metavar='N', type=int, default=128)
     parser.add_argument('--kernel_size', metavar='N', type=int, default=3)
     parser.add_argument('--n_classes', metavar='N', type=int, required=True)
@@ -62,7 +61,6 @@ def config(args, embedding):
     cfg.bipolar = args.bipolar
     cfg.data = args.data
     cfg.drop_rate = args.drop_rate
-    cfg.epochs = args.epochs
     cfg.filters = args.filters
     cfg.kernel_size = args.kernel_size
     cfg.n_classes = args.n_classes
@@ -103,10 +101,6 @@ def build_graph(cfg):
 
     env = build_metric(env, cfg)
 
-    with tf.variable_scope('train_op'):
-        optimizer = tf.train.AdamOptimizer()
-        env.train_op = optimizer.minimize(env.loss)
-
     with tf.variable_scope('deepfool'):
         env.adv_epochs = tf.placeholder(tf.int32, (), name='adv_epochs')
         env.adv_eps = tf.placeholder(tf.float32, (), name='adv_eps')
@@ -117,7 +111,6 @@ def build_graph(cfg):
 
 def make_deepfool(env, X_data):
     batch_size = env.cfg.adv_batch_size
-
     n_sample = X_data.shape[0]
     n_batch = int((n_sample + batch_size - 1) / batch_size)
     X_adv = np.empty_like(X_data)
@@ -156,8 +149,7 @@ def main(args):
         os.path.expanduser(cfg.data), cfg.bipolar)
 
     info('training model')
-    train(env, X_train, y_train, X_valid, y_valid, load=True,
-          batch_size=cfg.batch_size, epochs=cfg.epochs, name=cfg.name)
+    train(env, load=True, name=cfg.name)
     info('evaluating against clean test samples')
     evaluate(env, X_test, y_test, batch_size=cfg.batch_size)
 
