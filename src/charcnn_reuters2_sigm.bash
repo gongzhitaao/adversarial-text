@@ -2,10 +2,11 @@
 
 seqlen=100
 wordlen=20
+dataset=reuters2
 
 python run_charcnn.py \
        --batch_size 20 \
-       --data ~/data/reuters/reuters2/reuters2-char-seqlen-${seqlen}-wordlen-${wordlen}.npz \
+       --data ~/data/reuters/${dataset}/${dataset}-char-seqlen-${seqlen}-wordlen-${wordlen}.npz \
        --drop_rate 0.2 \
        --embedding_dim 128 \
        --epochs 5 \
@@ -15,7 +16,7 @@ python run_charcnn.py \
        --lstm_units 256 \
        --lstms 2 \
        --n_classes 2 \
-       --name reuters2-char-sigm-seqlen-${seqlen}-wordlen${wordlen} \
+       --name ${dataset}-char-sigm-seqlen-${seqlen}-wordlen-${wordlen} \
        --seqlen ${seqlen} \
        --unipolar \
        --vocab_size 128 \

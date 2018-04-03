@@ -38,7 +38,7 @@ def parse_args():
     parser.add_argument('--vocab_size', metavar='N', type=int, default=128)
     parser.add_argument('--wordlen', metavar='N', type=int, required=True)
 
-    bip = parser.add_mutually_exclusive_group(required=True)
+    bip = parser.add_mutually_exclusive_group()
     bip.add_argument('--bipolar', dest='bipolar', action='store_true',
                      help='-1/1 for output.')
     bip.add_argument('--unipolar', dest='bipolar', action='store_false',
@@ -92,6 +92,7 @@ def build_graph(cfg):
     env.training = tf.placeholder_with_default(False, (), 'mode')
 
     m = CharCNN(cfg)
+    env.model = m
     env.ybar = m.predict(env.x, env.training)
     env.saver = tf.train.Saver()
     env = build_metric(env, cfg)

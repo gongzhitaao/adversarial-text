@@ -37,8 +37,7 @@ class CharCNN:
         self.logits = None
         self.build = True
 
-    def _add_inference_graph(self, x, training=False):
-        self.x_embed = z = tf.nn.embedding_lookup(self.embedding, x)
+    def _inference_from_embedding(self, z, training):
         z = self.dropout(z, training=training)
         zs = [conv1d(z) for conv1d in self.conv1ds]
         zs = [tf.reduce_max(z, axis=1) for z in zs]  # max-over-time
@@ -50,12 +49,35 @@ class CharCNN:
         self.logits = z = self.resize(z)
         return z
 
-    def predict(self, x, training=False):
+    def embed(self, x):
         if not self.build:
             self._build()
-        logits = self._add_inference_graph(x, training)
+        self.x_embed = tf.nn.embedding_lookup(self.embedding, x)
+        return self.x_embed
+
+    def predict(self, x, training=False):
+        self.x_embed = self.embed(x)
+        logits = self._inference_from_embedding(self.x_embed, training)
         y = self.cfg.output(logits)
         return y
 
     def __call__(self, x, training=False):
         return self.predict(x, training)
+
+    def predict_from_embedding(self, x_embed, training=False):
+        if not self.build:
+            self._build()
+        logits = self._inference_from_embedding(x_embed, training)
+        y = self.cfg.output(logits)
+        return y
+
+    def reverse_embedding(self, x_embed):
+        if not self.build:
+            self._build()
+        # [B, L, V] = [B, L, D] x [D, V], actually D = V in our case.
+        # https://stackoverflow.com/a/46568057/1429714
+        dist = tf.tensordot(tf.nn.l2_normalize(x_embed, axis=-1),
+                            tf.transpose(self.embedding), axes=1)
+        # [B, L]
+        token_ids = tf.argmax(dist, axis=-1)
+        return token_ids
