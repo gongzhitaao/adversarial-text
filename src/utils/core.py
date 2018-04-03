@@ -18,7 +18,7 @@ info = logger.info
 
 
 @tick
-def train(env, X_data, y_data, X_valid=None, y_valid=None, epochs=1,
+def train(env, X_data=None, y_data=None, X_valid=None, y_valid=None, epochs=1,
           load=False, shuffle=True, batch_size=128, name='model'):
     """
     Train a TF model by running env.train_op.

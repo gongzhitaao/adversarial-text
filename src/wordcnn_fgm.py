@@ -11,7 +11,7 @@ from utils.core import train, evaluate
 from utils.misc import load_data, build_metric
 from utils.misc import ReverseEmbedding
 
-from attacks import deepfool
+from attacks import fgm
 
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -31,6 +31,7 @@ def parse_args():
     parser.add_argument('--data', metavar='FILE', type=str, required=True)
     parser.add_argument('--drop_rate', metavar='N', type=float, default=0.2)
     parser.add_argument('--embedding', metavar='FILE', type=str)
+    parser.add_argument('--epochs', metavar='N', type=int)
     parser.add_argument('--filters', metavar='N', type=int, default=128)
     parser.add_argument('--kernel_size', metavar='N', type=int, default=3)
     parser.add_argument('--n_classes', metavar='N', type=int, required=True)
@@ -45,7 +46,11 @@ def parse_args():
                      help='-1/1 for output.')
     bip.add_argument('--unipolar', dest='bipolar', action='store_false',
                      help='0/1 for output.')
-    parser.set_defaults(bipolar=False)
+
+    sig = parser.add_mutually_exclusive_group()
+    sig.add_argument('--fgsm', dest='sign', action='store_true', help='FGSM')
+    sig.add_argument('--fgvm', dest='sign', action='store_false', help='FGVM')
+    parser.set_defaults(sign=True)
 
     return parser.parse_args()
 
@@ -62,6 +67,7 @@ def config(args, embedding):
     cfg.bipolar = args.bipolar
     cfg.data = args.data
     cfg.drop_rate = args.drop_rate
+    cfg.epochs = args.epochs
     cfg.filters = args.filters
     cfg.kernel_size = args.kernel_size
     cfg.n_classes = args.n_classes
@@ -69,6 +75,7 @@ def config(args, embedding):
     cfg.outfile = args.outfile
     cfg.samples = args.samples
     cfg.seqlen = args.seqlen
+    cfg.sign = args.sign
     cfg.units = args.units
 
     if args.n_classes > 2:
@@ -105,12 +112,12 @@ def build_graph(cfg):
     with tf.variable_scope('deepfool'):
         env.adv_epochs = tf.placeholder(tf.int32, (), name='adv_epochs')
         env.adv_eps = tf.placeholder(tf.float32, (), name='adv_eps')
-        env.xadv = deepfool(m, env.x, epochs=env.adv_epochs, eps=env.adv_eps,
-                            batch=True, clip_min=-10, clip_max=10)
+        env.xadv = fgm(m, env.x, epochs=env.adv_epochs, eps=env.adv_eps,
+                       sign=cfg.sign, clip_min=-10, clip_max=10)
     return env
 
 
-def make_deepfool(env, X_data):
+def make_adversarial(env, X_data):
     batch_size = env.cfg.adv_batch_size
     n_sample = X_data.shape[0]
     n_batch = int((n_sample + batch_size - 1) / batch_size)
@@ -150,7 +157,8 @@ def main(args):
         os.path.expanduser(cfg.data), cfg.bipolar)
 
     info('training model')
-    train(env, load=True, name=cfg.name)
+    train(env, X_train, y_train, X_valid, y_valid, load=True,
+          batch_size=cfg.batch_size, epochs=cfg.epochs, name=cfg.name)
     info('evaluating against clean test samples')
     evaluate(env, X_test, y_test, batch_size=cfg.batch_size)
 
@@ -162,8 +170,8 @@ def main(args):
 
     env.re = ReverseEmbedding(w2v_file='~/data/glove/glove.840B.300d.w2v')
 
-    info('making deepfool adversarial texts')
-    X_adv = make_deepfool(env, X_data)
+    info('making adversarial adversarial texts')
+    X_adv = make_adversarial(env, X_data)
     info('evaluating against adversarial texts')
     evaluate(env, X_adv, y_data, batch_size=cfg.batch_size)
     env.sess.close()
