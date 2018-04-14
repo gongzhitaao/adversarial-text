@@ -4,7 +4,7 @@ import tensorflow as tf
 __all__ = ['hf_replace']
 
 
-def hf_replace(model, x, y, embedding_dim, seqlen,
+def hf_replace(model, x, embedding_dim, seqlen,
                loss_fn=tf.nn.sigmoid_cross_entropy_with_logits, beam_width=1,
                chars=10):
     """Hotflip replace attack.
@@ -20,6 +20,13 @@ def hf_replace(model, x, y, embedding_dim, seqlen,
     W = beam_width                 # beam size
     N = chars                      # maximum number of chars to change
     B = x.get_shape().as_list()[0]  # batch size
+
+    ybar = tf.stop_gradient(model(x))
+    ydim = ybar.get_shape()[1]
+    if 1 == ydim:
+        y = ybar
+    else:
+        y = tf.argmax(ybar, axis=1)
 
     def _beam_step(x):
         # x: [B, L]
