@@ -31,14 +31,13 @@ def fgm(model, x, eps=0.01, epochs=1, sign=True, clip_min=0., clip_max=1.):
         return tf.less(i, epochs)
 
     def _body(xadv, i):
-        ybar = model.predict_from_embedding(xadv)
+        model.predict_from_embedding(xadv)
         loss = loss_fn(labels=target, logits=model.logits)
         dy_dx, = tf.gradients(loss, xadv)
         xadv = tf.stop_gradient(xadv + eps*noise_fn(dy_dx))
         xadv = tf.clip_by_value(xadv, clip_min, clip_max)
         return xadv, i+1
 
-    zadv = model.embed(x)
-    zadv, _ = tf.while_loop(_cond, _body, (zadv, 0), back_prop=False,
+    xadv, _ = tf.while_loop(_cond, _body, (model.x_embed, 0), back_prop=False,
                             name='fast_gradient')
-    return zadv
+    return xadv
