@@ -18,7 +18,7 @@ def fgm(model, x, eps=0.01, epochs=1, sign=True, clip_min=0., clip_max=1.):
     if 1 == ydim:
         loss_fn = tf.nn.sigmoid_cross_entropy_with_logits
     else:
-        loss_fn = tf.nn.softmax_cross_entropy_with_logits
+        loss_fn = tf.nn.softmax_cross_entropy_with_logits_v2
 
     if sign:
         noise_fn = tf.sign
