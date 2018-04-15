@@ -1,0 +1,68 @@
+#+TITLE: Generate Adversarial Texts
+
+This is the code for our paper https://arxiv.org/abs/1801.07175
+
+* Introduction
+
+We are focusing on generate adversarial texts for text classification models.
+However, our framework can be easily extended to other text models.  Basically
+we search for potential adversarials in the text/character embedding space, and
+reconstruct the texts by nearest neighbor search.  The reconstructed texts are
+verified against the target model to filter out unsuccessful adversarial
+samples.  Searching for potential adversarials in the embedding space is the
+same as generating adversarial images.
+
+* Code Organization
+
+Our codes are carefully optimized and modularized to make it easy to reuse.
+
+** Dependencies
+
+These are the packages I used for my experiment.
+
+- Python 3.6.3 https://www.python.org/
+- TensorFlow v1.7 https://www.tensorflow.org/
+- NLTK v3.2 http://www.nltk.org/
+- gensim https://radimrehurek.com/gensim/
+- annoy https://github.com/spotify/annoy
+- Numpy http://www.numpy.org/
+
+** Code Structure
+
+All python files are backbone codes, while all bash files are helper codes.
+Bash files call corresponding python files with appropriate parameters.  They
+all follow certain naming conventions to make the code structure clear and easy
+to understand.  Please refer to READMEs in each sub-folder for doc.
+
+- The core codes reside in current direction.
+- The adversarial methods reside in [[file:attacks/][attacks/]] folder.
+- The data pipeline codes reside in [[file:data_utils/][data_utils/]] folder.
+- The other miscellaneous helper codes reside in [[file:utils/][utils/]] folder.
+
+* Code in Current Directory
+
+** Backbone Code
+
+- *MODEL.py* contains the model definition.
+  - [[file:wordcnn.py][wordcnn.py]] defines the word-level model =WordCNN=.
+  - [[file:charlstm.py][charlstm.py]] defines character-aware model =CharLSTM=.
+- *run_MODEL.py* contains model training code.
+  - [[file:run_wordcnn.py][run_wordcnn.py]] trains word-level model.
+  - [[file:run_charlstm.py][run_charlstm.py]] trains character-aware model.
+- *MODEL_ADV.py* contains the code to generate adversarial samples for model.
+  For example, [[file:wordcnn_fgm.py][wordcnn_fgm.py]] generates adversarial texts for =WordCNN= model
+  via =FGM= method.
+
+** Helper Code
+
+- Codes to train each model on different dataset
+  - *MODEL_DATA.bash* for classification problems with more than 2 labels, e.g,
+    [[file:charlstm_reuters5.bash][charlstm_reuters5.bash]] trains =CharLSTM= on Reuters5 dataset.
+  - *MODEL_DATA_sigm.bash* or *MODEL_DATA_tanh.bash* for binary classification
+    problems since DeepFool requires a bipolar output, i.e., [-1, 1], while
+    other adversarial methods require an unipolar output, i.e., [0, 1].  E.g.,
+    [[file:charlstm_reuters2_sigm.bash][charlstm_reuters2_sigm.bash]].
+- *MODEL_DATA_ADV.bash* contains code to generate adversarial samples for
+  different models and different dataset, e.g., [[file:charlstm_reuters2_fgsm.bash][charlstm_reuters2_fgsm.bash]]
+  generates adversarial texts for =CharLSTM= model on the Reuters2 dataset via
+  =FGM= method.
