@@ -1,0 +1,19 @@
+#+TITLE: Generate Adversarial Texts
+
+This is the code for our paper https://arxiv.org/abs/1801.07175
+
+* Introduction
+
+We are focusing on generate adversarial texts for text classification models.
+However, our framework can be easily extended to other text models.  Basically
+we search for potential adversarials in the text/character embedding space, and
+reconstruct the texts by nearest neighbor search.  The reconstructed texts are
+verified against the target model to filter out unsuccessful adversarial
+samples.  Searching for potential adversarials in the embedding space is the
+same as generating adversarial images.
+
+* Reproduce the Result
+
+The code to reproduce the results in our paper resides in [[file:src/][src/]] directory.  Our
+codes are carefully optimized and modularized to make it easy to reuse.  Please
+refer to the README in sub-folder for details.
