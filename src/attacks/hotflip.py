@@ -20,13 +20,7 @@ def hf_replace(model, x, embedding_dim, seqlen,
     W = beam_width                 # beam size
     N = chars                      # maximum number of chars to change
     B = x.get_shape().as_list()[0]  # batch size
-
-    ybar = tf.stop_gradient(model(x))
-    ydim = ybar.get_shape()[1]
-    if 1 == ydim:
-        y = ybar
-    else:
-        y = tf.argmax(ybar, axis=1)
+    y = tf.stop_gradient(model(x))
 
     def _beam_step(x):
         # x: [B, L]
