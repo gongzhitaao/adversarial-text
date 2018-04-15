@@ -6,12 +6,12 @@ import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 
-from charcnn import CharCNN
+from charlstm import CharLSTM
 
 from utils.core import train, evaluate
 from utils.misc import load_data, build_metric
 
-from attacks import deepfool
+from attacks import fgm
 
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -22,7 +22,7 @@ info = logger.info
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Attach CharCNN.')
+    parser = argparse.ArgumentParser(description='Attach CharLSTM.')
 
     parser.add_argument('--adv_epochs', metavar='N', type=int, default=5)
     parser.add_argument('--adv_eps', metavar='EPS', type=float, default=20)
@@ -53,6 +53,11 @@ def parse_args():
                      help='0/1 for output.')
     parser.set_defaults(bipolar=False)
 
+    sig = parser.add_mutually_exclusive_group()
+    sig.add_argument('--fgsm', dest='sign', action='store_true', help='FGSM')
+    sig.add_argument('--fgvm', dest='sign', action='store_false', help='FGVM')
+    parser.set_defaults(sign=True)
+
     return parser.parse_args()
 
 
@@ -76,6 +81,10 @@ def config(args, embedding):
     cfg.seqlen = args.seqlen
     cfg.vocab_size = args.vocab_size
     cfg.wordlen = args.wordlen
+
+    cfg.samples = args.samples
+    cfg.sign = args.sign
+    cfg.outfile = args.outfile
 
     cfg.adv_epochs = args.adv_epochs
     cfg.adv_eps = args.adv_eps
@@ -107,7 +116,8 @@ def build_graph(cfg):
     env.y = tf.placeholder(tf.int32, [cfg.batch_size, 1], 'y')
     env.training = tf.placeholder_with_default(False, (), 'mode')
 
-    m = CharCNN(cfg)
+    m = CharLSTM(cfg)
+    env.model = m
     env.ybar = m.predict(env.x, env.training)
     env.saver = tf.train.Saver()
     env = build_metric(env, cfg)
@@ -115,8 +125,8 @@ def build_graph(cfg):
     with tf.variable_scope('deepfool'):
         env.adv_epochs = tf.placeholder(tf.int32, (), name='adv_epochs')
         env.adv_eps = tf.placeholder(tf.float32, (), name='adv_eps')
-        xadv = deepfool(m, env.x, epochs=env.adv_epochs, eps=env.adv_eps,
-                        batch=True, clip_min=-10, clip_max=10)
+        xadv = fgm(m, env.x, epochs=env.adv_epochs, eps=env.adv_eps,
+                   sign=cfg.sign, clip_min=-10, clip_max=10)
         env.xadv = m.reverse_embedding(xadv)
     return env
 
@@ -183,7 +193,9 @@ def main(args):
     for i in range(cfg.n_classes):
         fn = '{0}-{1}'.format(fname, i)
         info('saving {}'.format(fn))
-        np.save(fn, X_data[y_data == i])
+        ind = np.where(y_data == i)
+        X_tmp = X_data[ind]
+        np.save(fn, X_adv=X_tmp, indices=ind)
 
 
 if __name__ == '__main__':

@@ -1,12 +1,12 @@
 """
-Implementation of Char-level CNN for text classification
+Implementation of Char-level LSTM for text classification
 """
 import tensorflow as tf
 
 from highway import Highway
 
 
-class CharCNN:
+class CharLSTM:
     def __init__(self, cfg):
         self.cfg = cfg
         self.build = False

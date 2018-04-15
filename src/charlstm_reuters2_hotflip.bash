@@ -2,14 +2,12 @@
 
 seqlen=100
 wordlen=20
-adv_eps=30
-batch_size=20
+maxchars=20
+beam_width=3
 dataset=reuters2
 
-python charcnn_deepfool.py \
-       --adv_epochs 5 \
-       --adv_eps ${adv_eps} \
-       --batch_size ${batch_size} \
+python charlstm_hotflip.py \
+       --batch_size 20 \
        --data ~/data/reuters/${dataset}/${dataset}-char-seqlen-${seqlen}-wordlen-${wordlen}.npz \
        --drop_rate 0.2 \
        --embedding_dim 128 \
@@ -19,10 +17,12 @@ python charcnn_deepfool.py \
        --lstm_units 256 \
        --lstms 2 \
        --n_classes 2 \
-       --name ${dataset}-char-tanh-seqlen-${seqlen}-wordlen-${wordlen} \
+       --name ${dataset}-char-sigm-seqlen-${seqlen}-wordlen-${wordlen} \
        --seqlen ${seqlen} \
-       --bipolar \
+       --unipolar \
        --vocab_size 128 \
-       --wordlen 20 \
-       --outfile ${dataset}-char-deepfool-eps-${adv_eps} \
-       --samples -1
+       --wordlen ${wordlen} \
+       --maxchars ${maxchars} \
+       --beam_width ${beam_width} \
+       --outfile ${dataset}-char-hotflip-c${maxchars}-b${beam_width} \
+       --samples 1000 \
