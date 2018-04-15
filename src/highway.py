@@ -33,9 +33,9 @@ class Highway(tf.layers.Layer):
                  trainable=True,
                  name=None,
                  **kwargs):
-        super(Highway, self).__init__(trainable=trainable, name=name,
-                                  activity_regularizer=activity_regularizer,
-                                  **kwargs)
+        super(Highway, self).__init__(
+            trainable=trainable, name=name,
+            activity_regularizer=activity_regularizer, **kwargs)
         self.units = units
         self.couple = couple
         self.activation = activation
@@ -80,7 +80,7 @@ class Highway(tf.layers.Layer):
             kernel_regularizer=self.transform_kernel_regularizer,
             bias_regularizer=self.transform_bias_regularizer)
         self.transform_gate.build(input_shape)
-        if not couple:
+        if not self.couple:
             self.carry_gate = tf.layers.Dense(
                 units=dim,
                 name='carry_gate',
