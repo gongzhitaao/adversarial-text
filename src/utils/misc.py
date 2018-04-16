@@ -8,7 +8,7 @@ import tensorflow as tf
 from tqdm import tqdm
 
 
-__all__ = ['load_data', 'build_metric', 'ReverseEmbedding']
+__all__ = ['load_data', 'build_metric', 'ReverseEmbedding', 'isadv', 'postfn']
 
 
 logger = logging.getLogger(__name__)
@@ -102,14 +102,39 @@ class ReverseEmbedding:
             self.indexer.model = self.w2v
 
     def reverse_embedding(self, vec, unk='<unk>'):
-        sents = np.empty(vec.shape[:-1], dtype=np.int32)
+        indices = np.empty(vec.shape[:-1], dtype=np.int32)
+        sents = []
         with DisableLogger():
             for i, cur in tqdm(enumerate(vec), total=vec.shape[0]):
                 tokens = [self.w2v.most_similar([v], topn=1,
                                                 indexer=self.indexer)[0][0]
                           for v in cur]
-                sents[i] = [self.w2v.vocab[w].index
-                            if w in self.w2v.vocab
-                            else self.w2v.vocab[unk].index
-                            for w in tokens]
-        return sents
+                indices[i] = [self.w2v.vocab[w].index for w in tokens]
+                sents.append(' '.join(tokens))
+        return (indices, sents)
+
+
+def isadv(*, y, y_pred, bipolar=False):
+    if y_pred.shape[1] == 1:
+        thres = 0. if bipolar else 0.5
+        z = y_pred > thres
+    else:
+        z = np.argmax(y_pred, axis=1)
+    return y.flatten() != z.flatten()
+
+
+def postfn(cfg, ind, X_adv, X_sents, y_data, y_adv):
+    advind = isadv(y=y_data, y_pred=y_adv, bipolar=cfg.bipolar)
+    fname = os.path.join('out', cfg.outfile)
+    dat = {}
+    for i in range(cfg.n_classes):
+        cur = np.where(np.all([advind, y_data.flatten() == i], axis=0))[0]
+        dat['x{}'.format(i)] = ind[cur]
+        sents = [X_sents[x] for x in cur]
+        fn = '{}-{}.txt'.format(fname, i)
+        info('saving {}'.format(fn))
+        with open(fn, 'w') as w:
+            w.write('\n'.join(sents))
+    fn = '{}-ind.npz'.format(fname)
+    info('saving {}'.format(fn))
+    np.savez(fn, **dat)

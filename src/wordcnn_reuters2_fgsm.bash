@@ -15,9 +15,10 @@ python wordcnn_fgm.py \
        --filters 128 \
        --kernel_size 3 \
        --n_classes 2 \
-       --name ${dataset}-word-tanh-seqlen-${seqlen} \
+       --name ${dataset}-word-sigm-seqlen-${seqlen} \
        --outfile ${dataset}-word-fgsm-eps-${adv_eps} \
        --samples 16 \
        --seqlen ${seqlen} \
        --fgsm \
-       --units 128
+       --units 128 \
+       --w2v '~/data/glove/glove.840B.300d.w2v'
