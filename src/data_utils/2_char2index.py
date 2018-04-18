@@ -39,17 +39,22 @@ def charindex(fname):
 
 
 def main(args):
-    info('generate training data')
-    X_train, y_train = charindex(os.path.expanduser(args.train))
-    info('generate test data')
-    X_test, y_test = charindex(os.path.expanduser(args.test))
-    data = {'X_train': X_train, 'y_train': y_train,
-            'X_test': X_test, 'y_test': y_test}
+    data = {}
+    if args.train is not None:
+        info('generate training data')
+        X_train, y_train = char2index(os.path.expanduser(args.train), w2v)
+        data['X_train'], data['y_train'] = X_train, y_train
+    if args.test is not None:
+        info('generate test data')
+        X_test, y_test = char2index(os.path.expanduser(args.test), w2v)
+        data['X_test'], data['y_test'] = X_test, y_test
     if args.validation is not None:
-        X_valid, y_valid = charindex(os.path.expanduser(args.validation))
+        info('generate validation data')
+        X_valid, y_valid = char2index(os.path.expanduser(args.validation),
+                                      w2v)
         data['X_valid'], data['y_valid'] = X_valid, y_valid
     info('saving {}'.format(args.output))
-    np.savez(args.output, **data)
+    np.savez(os.path.expanduser(args.output), **data)
 
 
 if __name__ == '__main__':

@@ -59,7 +59,7 @@ def main(args):
                                        w2v)
         data['X_valid'], data['y_valid'] = X_valid, y_valid
     info('saving {}'.format(args.output))
-    np.savez(args.output, **data)
+    np.savez(os.path.expanduser(args.output), **data)
 
 
 if __name__ == '__main__':

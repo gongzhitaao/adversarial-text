@@ -2,7 +2,6 @@ import os
 import logging
 import argparse
 
-from tqdm import tqdm
 import numpy as np
 
 
