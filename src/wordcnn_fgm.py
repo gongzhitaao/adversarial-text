@@ -31,11 +31,11 @@ def parse_args():
     parser.add_argument('--embedding', metavar='FILE', type=str)
     parser.add_argument('--epochs', metavar='N', type=int)
     parser.add_argument('--filters', metavar='N', type=int, default=128)
+    parser.add_argument('--indexer', metavar='IDX', type=str)
     parser.add_argument('--kernel_size', metavar='N', type=int, default=3)
     parser.add_argument('--n_classes', metavar='N', type=int, required=True)
     parser.add_argument('--name', metavar='MODEL', type=str)
     parser.add_argument('--outfile', metavar='FILE', type=str, required=True)
-    parser.add_argument('--samples', metavar='N', type=int, default=-1)
     parser.add_argument('--seqlen', metavar='N', type=int, default=300)
     parser.add_argument('--units', metavar='N', type=int, default=512)
 
@@ -47,8 +47,8 @@ def parse_args():
 
     parser.add_argument('--adv_batch_size', metavar='N', type=int, default=64)
     parser.add_argument('--adv_epochs', metavar='N', type=int, default=5)
-    parser.add_argument('--adv_eps', metavar='EPS', type=float, default=20)
-    parser.add_argument('--w2v', metavar='w2v', type=str, default=20)
+    parser.add_argument('--adv_eps', metavar='EPS', type=float)
+    parser.add_argument('--w2v', metavar='w2v', type=str)
 
     sig = parser.add_mutually_exclusive_group()
     sig.add_argument('--fgsm', dest='sign', action='store_true', help='FGSM')
@@ -65,15 +65,15 @@ def config(args, embedding):
 
     cfg.batch_size = args.batch_size
     cfg.bipolar = args.bipolar
-    cfg.data = args.data
+    cfg.data = os.path.expanduser(args.data)
     cfg.drop_rate = args.drop_rate
     cfg.epochs = args.epochs
     cfg.filters = args.filters
+    cfg.indexer = args.indexer
     cfg.kernel_size = args.kernel_size
     cfg.n_classes = args.n_classes
     cfg.name = args.name
     cfg.outfile = args.outfile
-    cfg.samples = args.samples
     cfg.seqlen = args.seqlen
     cfg.units = args.units
 
@@ -132,11 +132,12 @@ def make_adversarial(env, X_data):
         info('batch {0}/{1}'.format(batch+1, n_batch))
         end = min((batch + 1) * batch_size, n_sample)
         start = end - batch_size
-        feed_dict = {env.x: X_data[start:end],
+        X_cur = X_data[start:end]
+        feed_dict = {env.x: X_cur,
                      env.adv_epochs: env.cfg.adv_epochs,
                      env.adv_eps: env.cfg.adv_eps}
         xadv = env.sess.run(env.xadv, feed_dict=feed_dict)
-        inds, sents = env.re.reverse_embedding(xadv)
+        inds, sents = env.re.reverse_embedding(xadv, X_cur)
         X_adv[start:end] = inds
         X_sents += sents
     return (X_adv, X_sents)
@@ -161,34 +162,22 @@ def main(args):
     env.sess = sess
 
     info('loading data')
-    (X_train, y_train), (X_test, y_test), (X_valid, y_valid) = load_data(
-        os.path.expanduser(cfg.data), cfg.bipolar)
+    X_data, y_data = load_data(cfg.data, cfg.bipolar)
 
-    info('training model')
-    train(env, X_train, y_train, X_valid, y_valid, load=True,
-          batch_size=cfg.batch_size, epochs=cfg.epochs, name=cfg.name)
+    info('loading model')
+    train(env, load=True, name=cfg.name)
     info('evaluating against clean test samples')
-    evaluate(env, X_test, y_test, batch_size=cfg.batch_size)
+    evaluate(env, X_data, y_data, batch_size=cfg.batch_size)
 
-    if cfg.samples > 0:
-        ind = np.random.permutation(X_test.shape[0])[:cfg.samples]
-        X_data, y_data = X_test[ind], y_test[ind]
-    else:
-        ind = np.arange(X_test.shape[0])
-        X_data, y_data = X_test, y_test
+    env.re = ReverseEmbedding(w2v_file=cfg.w2v, index_file=cfg.indexer)
 
-    env.re = ReverseEmbedding(w2v_file=cfg.w2v)
-
-    info('making adversarial adversarial texts')
+    info('making adversarial texts')
     X_adv, X_sents = make_adversarial(env, X_data)
     info('evaluating against adversarial texts')
     evaluate(env, X_adv, y_data, batch_size=cfg.batch_size)
     y_adv = predict(env, X_adv, batch_size=cfg.batch_size)
     env.sess.close()
-
-    if cfg.bipolar:
-        y_data = (y_data + 1) // 2
-    postfn(cfg, ind, X_adv, X_sents, y_data, y_adv)
+    postfn(cfg, X_sents, y_data, y_adv)
 
 
 if __name__ == '__main__':

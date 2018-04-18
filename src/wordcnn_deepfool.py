@@ -7,9 +7,10 @@ import tensorflow as tf
 
 from wordcnn import WordCNN
 
-from utils.core import train, evaluate
+from utils.core import train, evaluate, predict
 from utils.misc import load_data, build_metric
 from utils.misc import ReverseEmbedding
+from utils.misc import postfn
 
 from attacks import deepfool
 
@@ -24,19 +25,17 @@ info = logger.info
 def parse_args():
     parser = argparse.ArgumentParser(description='Classify text with WordCNN')
 
-    parser.add_argument('--adv_batch_size', metavar='N', type=int, default=64)
-    parser.add_argument('--adv_epochs', metavar='N', type=int, default=5)
-    parser.add_argument('--adv_eps', metavar='EPS', type=float, default=20)
     parser.add_argument('--batch_size', metavar='N', type=int, default=64)
     parser.add_argument('--data', metavar='FILE', type=str, required=True)
     parser.add_argument('--drop_rate', metavar='N', type=float, default=0.2)
     parser.add_argument('--embedding', metavar='FILE', type=str)
+    parser.add_argument('--epochs', metavar='N', type=int)
     parser.add_argument('--filters', metavar='N', type=int, default=128)
+    parser.add_argument('--indexer', metavar='IDX', type=str)
     parser.add_argument('--kernel_size', metavar='N', type=int, default=3)
     parser.add_argument('--n_classes', metavar='N', type=int, required=True)
     parser.add_argument('--name', metavar='MODEL', type=str)
     parser.add_argument('--outfile', metavar='FILE', type=str, required=True)
-    parser.add_argument('--samples', metavar='N', type=int, default=-1)
     parser.add_argument('--seqlen', metavar='N', type=int, default=300)
     parser.add_argument('--units', metavar='N', type=int, default=512)
 
@@ -45,7 +44,11 @@ def parse_args():
                      help='-1/1 for output.')
     bip.add_argument('--unipolar', dest='bipolar', action='store_false',
                      help='0/1 for output.')
-    parser.set_defaults(bipolar=False)
+
+    parser.add_argument('--adv_batch_size', metavar='N', type=int, default=64)
+    parser.add_argument('--adv_epochs', metavar='N', type=int, default=5)
+    parser.add_argument('--adv_eps', metavar='EPS', type=float)
+    parser.add_argument('--w2v', metavar='w2v', type=str)
 
     return parser.parse_args()
 
@@ -55,19 +58,17 @@ def config(args, embedding):
         pass
     cfg = _Dummy()
 
-    cfg.adv_batch_size = args.adv_batch_size
-    cfg.adv_epochs = args.adv_epochs
-    cfg.adv_eps = args.adv_eps
     cfg.batch_size = args.batch_size
     cfg.bipolar = args.bipolar
-    cfg.data = args.data
+    cfg.data = os.path.expanduser(args.data)
     cfg.drop_rate = args.drop_rate
+    cfg.epochs = args.epochs
     cfg.filters = args.filters
+    cfg.indexer = args.indexer
     cfg.kernel_size = args.kernel_size
     cfg.n_classes = args.n_classes
     cfg.name = args.name
     cfg.outfile = args.outfile
-    cfg.samples = args.samples
     cfg.seqlen = args.seqlen
     cfg.units = args.units
 
@@ -79,6 +80,11 @@ def config(args, embedding):
     cfg.embedding = tf.placeholder(tf.float32, embedding.shape)
     cfg.vocab_size = embedding.shape[0]
     cfg.embedding_dim = embedding.shape[1]
+
+    cfg.adv_batch_size = args.adv_batch_size
+    cfg.adv_epochs = args.adv_epochs
+    cfg.adv_eps = args.adv_eps
+    cfg.w2v = os.path.expanduser(args.w2v)
 
     return cfg
 
@@ -110,21 +116,25 @@ def build_graph(cfg):
     return env
 
 
-def make_deepfool(env, X_data):
+def make_adversarial(env, X_data):
     batch_size = env.cfg.adv_batch_size
     n_sample = X_data.shape[0]
     n_batch = int((n_sample + batch_size - 1) / batch_size)
     X_adv = np.empty_like(X_data)
+    X_sents = []
     for batch in range(n_batch):
         info('batch {0}/{1}'.format(batch+1, n_batch))
         end = min((batch + 1) * batch_size, n_sample)
         start = end - batch_size
-        feed_dict = {env.x: X_data[start:end],
+        X_cur = X_data[start:end]
+        feed_dict = {env.x: X_cur,
                      env.adv_epochs: env.cfg.adv_epochs,
                      env.adv_eps: env.cfg.adv_eps}
         xadv = env.sess.run(env.xadv, feed_dict=feed_dict)
-        X_adv[start:end] = env.re.reverse_embedding(xadv)
-    return X_adv
+        inds, sents = env.re.reverse_embedding(xadv, X_cur)
+        X_adv[start:end] = inds
+        X_sents += sents
+    return (X_adv, X_sents)
 
 
 def main(args):
@@ -146,34 +156,22 @@ def main(args):
     env.sess = sess
 
     info('loading data')
-    (X_train, y_train), (X_test, y_test), (X_valid, y_valid) = load_data(
-        os.path.expanduser(cfg.data), cfg.bipolar)
+    X_data, y_data = load_data(cfg.data, cfg.bipolar)
 
-    info('training model')
+    info('loading model')
     train(env, load=True, name=cfg.name)
     info('evaluating against clean test samples')
-    evaluate(env, X_test, y_test, batch_size=cfg.batch_size)
+    evaluate(env, X_data, y_data, batch_size=cfg.batch_size)
 
-    if cfg.samples > 0:
-        ind = np.random.permutation(X_test.shape[0])[:cfg.samples]
-        X_data, y_data = X_test[ind], y_test[ind]
-    else:
-        X_data, y_data = X_test, y_test
+    env.re = ReverseEmbedding(w2v_file=cfg.w2v, index_file=cfg.indexer)
 
-    env.re = ReverseEmbedding(w2v_file='~/data/glove/glove.840B.300d.w2v')
-
-    info('making deepfool adversarial texts')
-    X_adv = make_deepfool(env, X_data)
+    info('making adversarial texts')
+    X_adv, X_sents = make_adversarial(env, X_data)
     info('evaluating against adversarial texts')
     evaluate(env, X_adv, y_data, batch_size=cfg.batch_size)
+    y_adv = predict(env, X_adv, batch_size=cfg.batch_size)
     env.sess.close()
-
-    fname = os.path.join('out', cfg.outfile)
-    if cfg.bipolar:
-        y_data = (y_data + 1) // 2
-    info('saving {}'.format(fname))
-    data = np.hstack((y_data, X_adv))
-    np.save(fname, data)
+    postfn(cfg, X_sents, y_data, y_adv)
 
 
 if __name__ == '__main__':
