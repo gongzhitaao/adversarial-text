@@ -8,8 +8,8 @@ from tqdm import tqdm
 
 from charlstm import CharLSTM
 
-from utils.core import train, evaluate
-from utils.misc import load_data, build_metric
+from utils.core import train, evaluate, predict
+from utils.misc import load_data, build_metric, index2char, postfn
 
 from attacks import fgm
 
@@ -43,9 +43,6 @@ def parse_args():
     parser.add_argument('--vocab_size', metavar='N', type=int, default=128)
     parser.add_argument('--wordlen', metavar='N', type=int, required=True)
 
-    parser.add_argument('--samples', metavar='N', type=int, default=-1)
-    parser.add_argument('--outfile', metavar='FILE', type=str, required=True)
-
     bip = parser.add_mutually_exclusive_group()
     bip.add_argument('--bipolar', dest='bipolar', action='store_true',
                      help='-1/1 for output.')
@@ -53,6 +50,7 @@ def parse_args():
                      help='0/1 for output.')
     parser.set_defaults(bipolar=False)
 
+    parser.add_argument('--outfile', metavar='FILE', type=str, required=True)
     sig = parser.add_mutually_exclusive_group()
     sig.add_argument('--fgsm', dest='sign', action='store_true', help='FGSM')
     sig.add_argument('--fgvm', dest='sign', action='store_false', help='FGVM')
@@ -82,14 +80,10 @@ def config(args, embedding):
     cfg.vocab_size = args.vocab_size
     cfg.wordlen = args.wordlen
 
-    cfg.samples = args.samples
-    cfg.sign = args.sign
-    cfg.outfile = args.outfile
-
     cfg.adv_epochs = args.adv_epochs
     cfg.adv_eps = args.adv_eps
+    cfg.sign = args.sign
     cfg.outfile = args.outfile
-    cfg.samples = args.samples
 
     cfg.charlen = (cfg.seqlen * (cfg.wordlen
                                  + 2         # start/end of word symbol
@@ -166,36 +160,23 @@ def main(args):
     env.sess = sess
 
     info('loading data')
-    (X_train, y_train), (X_test, y_test), (X_valid, y_valid) = load_data(
-        os.path.expanduser(cfg.data), cfg.bipolar)
+    (_, _), (X_data, y_data) = load_data(os.path.expanduser(cfg.data),
+                                         cfg.bipolar, -1)
 
     info('loading model')
     train(env, load=True, name=cfg.name)
     info('evaluating against clean test samples')
-    evaluate(env, X_test, y_test, batch_size=cfg.batch_size)
-
-    if cfg.samples > 0:
-        ind = np.random.permutation(X_test.shape[0])[:cfg.samples]
-        X_data, y_data = X_test[ind], y_test[ind]
-    else:
-        X_data, y_data = X_test, y_test
+    evaluate(env, X_data, y_data, batch_size=cfg.batch_size)
 
     info('making adversarial texts')
     X_adv = make_adversarial(env, X_data)
     info('evaluating against adversarial texts')
     evaluate(env, X_adv, y_data, batch_size=cfg.batch_size)
+    y_adv = predict(env, X_adv, batch_size=cfg.batch_size)
     env.sess.close()
-
-    fname = os.path.join('out', cfg.outfile)
-    y_data = y_data.flatten()
-    if cfg.bipolar:
-        y_data = (y_data + 1) // 2
-    for i in range(cfg.n_classes):
-        fn = '{0}-{1}'.format(fname, i)
-        info('saving {}'.format(fn))
-        ind = np.where(y_data == i)
-        X_tmp = X_data[ind]
-        np.save(fn, X_adv=X_tmp, indices=ind)
+    info('recover chars from indices')
+    X_sents = index2char(X_adv)
+    postfn(cfg, X_sents, y_data, y_adv)
 
 
 if __name__ == '__main__':

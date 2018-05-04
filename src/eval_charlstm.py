@@ -1,18 +1,14 @@
 import os
 import logging
 import argparse
-from copy import deepcopy
 
 import numpy as np
 import tensorflow as tf
-from tqdm import tqdm
 
 from charlstm import CharLSTM
 
-from utils.core import train, evaluate, predict
-from utils.misc import load_data, build_metric, index2char, postfn
-
-from attacks import hf_replace
+from utils.core import train, evaluate
+from utils.misc import load_data, build_metric
 
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -23,12 +19,12 @@ info = logger.info
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Attack CharLSTM.')
-
+    parser = argparse.ArgumentParser(description='Classify text with CharLSTM')
     parser.add_argument('--batch_size', metavar='N', type=int, default=64)
     parser.add_argument('--data', metavar='FILE', type=str, required=True)
     parser.add_argument('--drop_rate', metavar='N', type=float, default=0.2)
-    parser.add_argument('--embedding_dim', metavar='N', type=int)
+    parser.add_argument('--embedding_dim', metavar='FILE', type=str)
+    parser.add_argument('--epochs', metavar='N', type=int, default=10)
     parser.add_argument('--feature_maps', metavar='N1 [N2 N3 ...]', nargs='+',
                         default=[25, 50, 75, 100, 125, 150])
     parser.add_argument('--kernel_sizes', metavar='N1 [N2 N3 ...]', nargs='+',
@@ -49,25 +45,28 @@ def parse_args():
                      help='0/1 for output.')
     parser.set_defaults(bipolar=False)
 
-    parser.add_argument('--maxchars', metavar='N', type=int, default=10,
-                        help='maximum number of chars to perturb')
-    parser.add_argument('--beam_width', metavar='N', type=int, default=1)
-    parser.add_argument('--outfile', metavar='FILE', type=str, required=True)
-    parser.add_argument('--unk', metavar='UNK', type=str, default='|')
-
-    ka = parser.add_mutually_exclusive_group()
-    ka.add_argument('--keepall', dest='keepall', action='store_true',
-                     help='save all generated texts.')
-    ka.add_argument('--keepadv', dest='keepall', action='store_false',
-                     help='save only adversarial texts.')
-    parser.set_defaults(keepall=False)
-
     return parser.parse_args()
 
 
 def config(args, embedding):
-    cfg = deepcopy(args)
-    cfg.data = os.path.expanduser(cfg.data)
+    class _Dummy():
+        pass
+    cfg = _Dummy()
+
+    cfg.batch_size = args.batch_size
+    cfg.data = os.path.expanduser(args.data)
+    cfg.drop_rate = args.drop_rate
+    cfg.embedding_dim = args.embedding_dim
+    cfg.feature_maps = args.feature_maps
+    cfg.highways = args.highways
+    cfg.kernel_sizes = args.kernel_sizes
+    cfg.lstm_units = args.lstm_units
+    cfg.lstms = args.lstms
+    cfg.n_classes = args.n_classes
+    cfg.seqlen = args.seqlen
+    cfg.vocab_size = args.vocab_size
+    cfg.wordlen = args.wordlen
+
     cfg.charlen = (cfg.seqlen * (cfg.wordlen
                                  + 2         # start/end of word symbol
                                  + 1)        # whitespace between tokens
@@ -79,6 +78,7 @@ def config(args, embedding):
         cfg.output = tf.tanh if args.bipolar else tf.sigmoid
 
     cfg.embedding = tf.placeholder(tf.float32, embedding.shape)
+
     return cfg
 
 
@@ -98,26 +98,7 @@ def build_graph(cfg):
     env.saver = tf.train.Saver()
     env = build_metric(env, cfg)
 
-    with tf.variable_scope('hotflip'):
-        env.xadv = hf_replace(m, env.x, seqlen=cfg.charlen,
-                              embedding_dim=cfg.embedding_dim,
-                              beam_width=cfg.beam_width, chars=cfg.maxchars)
     return env
-
-def make_adversarial(env, X_data):
-    batch_size = env.cfg.batch_size
-    n_sample = X_data.shape[0]
-    n_batch = int((n_sample + batch_size - 1) / batch_size)
-    dim = X_data.shape[1]
-    B = env.cfg.beam_width
-    X_adv = np.empty((B, X_data.shape[0], dim), dtype=int)
-    for batch in tqdm(range(n_batch), total=n_batch):
-        end = min((batch + 1) * batch_size, n_sample)
-        start = end - batch_size
-        feed_dict = {env.x: X_data[start:end]}
-        xadv = env.sess.run(env.xadv, feed_dict=feed_dict)
-        X_adv[:, start:end, :] = xadv
-    return X_adv
 
 
 def main(args):
@@ -129,7 +110,6 @@ def main(args):
 
     info('constructing graph')
     env = build_graph(cfg)
-    env.cfg = cfg
 
     info('initializing session')
     sess = tf.Session()
@@ -139,24 +119,12 @@ def main(args):
     env.sess = sess
 
     info('loading data')
-    (_, _), (X_data, y_data) = load_data(os.path.expanduser(cfg.data),
-                                         cfg.bipolar, validation_split=-1)
+    X_test, y_test = load_data(cfg.data, args.bipolar, -1)
 
-    info('loading model')
-    train(env, load=True, name=cfg.name)
-    info('evaluating against clean test samples')
-    evaluate(env, X_data, y_data, batch_size=cfg.batch_size)
-    info('making adversarial texts')
-    X_adv = make_adversarial(env, X_data)
-    X_adv = np.reshape(X_adv, (-1, cfg.charlen))
-    y_data = np.tile(y_data, (cfg.beam_width, 1))
-    info('evaluating against adversarial texts')
-    evaluate(env, X_adv, y_data, batch_size=cfg.batch_size)
-    y_adv = predict(env, X_adv, batch_size=cfg.batch_size)
+    info('training model')
+    train(env, load=True, name=args.name)
+    evaluate(env, X_test, y_test, batch_size=args.batch_size)
     env.sess.close()
-    info('recover chars from indices')
-    X_sents = index2char(X_adv, unk=cfg.unk)
-    postfn(cfg, X_sents, y_data, y_adv)
 
 
 if __name__ == '__main__':

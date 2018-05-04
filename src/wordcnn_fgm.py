@@ -4,6 +4,7 @@ import argparse
 
 import numpy as np
 import tensorflow as tf
+from tqdm import tqdm
 
 from wordcnn import WordCNN
 
@@ -128,8 +129,7 @@ def make_adversarial(env, X_data):
     n_batch = int((n_sample + batch_size - 1) / batch_size)
     X_adv = np.empty_like(X_data)
     X_sents = []
-    for batch in range(n_batch):
-        info('batch {0}/{1}'.format(batch+1, n_batch))
+    for batch in tqdm(range(n_batch), total=n_batch):
         end = min((batch + 1) * batch_size, n_sample)
         start = end - batch_size
         X_cur = X_data[start:end]
@@ -162,7 +162,7 @@ def main(args):
     env.sess = sess
 
     info('loading data')
-    X_data, y_data = load_data(cfg.data, cfg.bipolar)
+    (_, _), (X_data, y_data) = load_data(cfg.data, cfg.bipolar, -1)
 
     info('loading model')
     train(env, load=True, name=cfg.name)

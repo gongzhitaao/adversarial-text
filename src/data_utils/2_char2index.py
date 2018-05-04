@@ -15,15 +15,15 @@ info = logger.info
 def parse_args():
     parser = argparse.ArgumentParser(
         description='Convert each character to its UTF-8 encoding with ord.')
-    parser.add_argument('--train', type=str, help='train.txt', required=True)
-    parser.add_argument('--test', type=str, help='test.txt', required=True)
+    parser.add_argument('--train', type=str, help='train.txt')
+    parser.add_argument('--test', type=str, help='test.txt')
     parser.add_argument('--validation', type=str, help='validation.txt')
     parser.add_argument('--output', type=str, required=True,
                         help='output file name')
     return parser.parse_args()
 
 
-def charindex(fname):
+def char2index(fname):
     info('reading {}'.format(fname))
     with open(fname, 'r') as r:
         sents = r.read().splitlines()
@@ -42,16 +42,15 @@ def main(args):
     data = {}
     if args.train is not None:
         info('generate training data')
-        X_train, y_train = char2index(os.path.expanduser(args.train), w2v)
+        X_train, y_train = char2index(os.path.expanduser(args.train))
         data['X_train'], data['y_train'] = X_train, y_train
     if args.test is not None:
         info('generate test data')
-        X_test, y_test = char2index(os.path.expanduser(args.test), w2v)
+        X_test, y_test = char2index(os.path.expanduser(args.test))
         data['X_test'], data['y_test'] = X_test, y_test
     if args.validation is not None:
         info('generate validation data')
-        X_valid, y_valid = char2index(os.path.expanduser(args.validation),
-                                      w2v)
+        X_valid, y_valid = char2index(os.path.expanduser(args.validation))
         data['X_valid'], data['y_valid'] = X_valid, y_valid
     info('saving {}'.format(args.output))
     np.savez(os.path.expanduser(args.output), **data)

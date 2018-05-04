@@ -63,13 +63,25 @@ def encode_token(fname, args):
 
 
 def decode_token(fname, args):
-    info('reading lines')
+    info('char unpadding {}'.format(fname))
     lines = [line for line in open(fname, 'r')]
     # split, discard the last token eos, and remove bow, eow.
     a, b = len(args.sow), len(args.eow)
     for line in tqdm(lines):
-        cur = ' '.join([w.strip(args.pad)[a:-b] for w in line.split()[:-1]])
-        print(cur)
+        cur = []
+        words = line.split()
+        if words[-1] == args.eos:
+            words = words[:-1]
+        for w in words:
+            if w[0] == args.sow:
+                w = w[1:]
+            if len(w) <= 0:
+                continue
+            if w[-1] == args.eow:
+                w = w[:-1]
+            w = w.strip(args.pad)
+            cur.append(w)
+        print(' '.join(cur))
 
 
 def main(args):

@@ -22,6 +22,7 @@ info = logger.info
 class DisableLogger():
     def __enter__(self):
         logging.disable(100000)
+
     def __exit__(self, *_):
         logging.disable(logging.NOTSET)
 
@@ -39,6 +40,7 @@ def extend_glove():
         for k, v in symbols.items():
             w.write('{0} {1}\n'.format(k, ' '.join(str(e) for e in v)))
 
+
 def build_word2vec():
     info('converting from glove to word2vec format')
     glove2word2vec(glove_file, w2v_file)
@@ -46,14 +48,17 @@ def build_word2vec():
     model = KeyedVectors.load_word2vec_format(w2v_file, binary=False)
     model.save(w2v_model)
 
+
 def build_annoy(w2v):
     info('building index')
     annoy_index = AnnoyIndexer(w2v, 500)
     info('saving index')
     annoy_index.save(annoy_file)
 
+
 # extend_glove()
 # build_word2vec()
+
 
 info('loading model')
 model = KeyedVectors.load(w2v_model)

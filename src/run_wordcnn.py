@@ -1,6 +1,7 @@
 import os
 import logging
 import argparse
+from copy import deepcopy
 
 import numpy as np
 import tensorflow as tf
@@ -43,16 +44,9 @@ def parse_args():
 
 
 def config(args, embedding):
-    class _Dummy():
-        pass
-    cfg = _Dummy()
+    cfg = deepcopy(args)
 
-    cfg.n_classes = args.n_classes
-    cfg.filters = args.filters
-    cfg.kernel_size = args.kernel_size
-    cfg.units = args.units
-    cfg.seqlen = args.seqlen
-    cfg.drop_rate = args.drop_rate
+    cfg.data = os.path.expanduser(cfg.data)
 
     if args.n_classes > 2:
         cfg.output = tf.nn.softmax
@@ -111,12 +105,12 @@ def main(args):
 
     info('loading data')
     (X_train, y_train), (X_test, y_test), (X_valid, y_valid) = load_data(
-        os.path.expanduser(args.data), args.bipolar)
+        cfg.data, cfg.bipolar)
 
     info('training model')
     train(env, X_train, y_train, X_valid, y_valid, load=False,
-          batch_size=args.batch_size, epochs=args.epochs, name=args.name)
-    evaluate(env, X_test, y_test, batch_size=args.batch_size)
+          batch_size=cfg.batch_size, epochs=cfg.epochs, name=cfg.name)
+    evaluate(env, X_test, y_test, batch_size=cfg.batch_size)
     env.sess.close()
 
 

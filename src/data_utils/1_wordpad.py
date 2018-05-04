@@ -24,11 +24,19 @@ def parse_args():
                         help='unknown token symbol')
     parser.add_argument('--pad', type=str, default='<pad>',
                         help='padding symbol')
+
+    enc = parser.add_mutually_exclusive_group()
+    enc.add_argument('--encode', dest='encode', action='store_true',
+                     help='encode file if True, otherwise decode file.')
+    enc.add_argument('--decode', dest='encode', action='store_false',
+                     help='encode file if True, otherwise decode file.')
+    parser.set_defaults(encode=True)
+
     return parser.parse_args()
 
 
 def wordpad(fname, args):
-    info('processing {}'.format(fname))
+    info('padding {}'.format(fname))
     # Replace any <eos> and <pad> appearing in the text with <unk>.
     lines = [re.sub(r'(({0})|({1}))'.format(args.eos, args.pad), args.unk,
                     line.strip()) for line in open(fname, 'r')]
@@ -38,8 +46,20 @@ def wordpad(fname, args):
         print(' '.join(cur))
 
 
+def wordunpad(fname, args):
+    info('unpadding {}'.format(fname))
+    lines = [line for line in open(fname)]
+    for line in tqdm(lines):
+        words = line.split()
+        end = min(words.index(args.eos), args.seqlen)
+        print(' '.join(words[:end]))
+
+
 def main(args):
-    wordpad(os.path.expanduser(args.fname), args)
+    if args.encode:
+        wordpad(os.path.expanduser(args.fname), args)
+    else:
+        wordunpad(os.path.expanduser(args.fname), args)
 
 
 if __name__ == '__main__':

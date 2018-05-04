@@ -1,6 +1,7 @@
 import os
 import logging
 import argparse
+from copy import deepcopy
 
 import numpy as np
 import tensorflow as tf
@@ -8,8 +9,8 @@ from tqdm import tqdm
 
 from charlstm import CharLSTM
 
-from utils.core import train, evaluate
-from utils.misc import load_data, build_metric
+from utils.core import train, evaluate, predict
+from utils.misc import load_data, build_metric, index2char, postfn
 
 from attacks import deepfool
 
@@ -24,8 +25,6 @@ info = logger.info
 def parse_args():
     parser = argparse.ArgumentParser(description='Attach CharLSTM.')
 
-    parser.add_argument('--adv_epochs', metavar='N', type=int, default=5)
-    parser.add_argument('--adv_eps', metavar='EPS', type=float, default=20)
     parser.add_argument('--batch_size', metavar='N', type=int, default=64)
     parser.add_argument('--data', metavar='FILE', type=str, required=True)
     parser.add_argument('--drop_rate', metavar='N', type=float, default=0.2)
@@ -43,9 +42,6 @@ def parse_args():
     parser.add_argument('--vocab_size', metavar='N', type=int, default=128)
     parser.add_argument('--wordlen', metavar='N', type=int, required=True)
 
-    parser.add_argument('--samples', metavar='N', type=int, default=-1)
-    parser.add_argument('--outfile', metavar='FILE', type=str, required=True)
-
     bip = parser.add_mutually_exclusive_group()
     bip.add_argument('--bipolar', dest='bipolar', action='store_true',
                      help='-1/1 for output.')
@@ -53,47 +49,35 @@ def parse_args():
                      help='0/1 for output.')
     parser.set_defaults(bipolar=False)
 
+    parser.add_argument('--adv_epochs', metavar='N', type=int, default=5)
+    parser.add_argument('--adv_eps', metavar='EPS', type=float, default=20)
+    parser.add_argument('--outfile', metavar='FILE', type=str, required=True)
+    parser.add_argument('--unk', metavar='UNK', type=str, default='|')
+
+    ka = parser.add_mutually_exclusive_group()
+    ka.add_argument('--keepall', dest='keepall', action='store_true',
+                     help='save all generated texts.')
+    ka.add_argument('--keepadv', dest='keepall', action='store_false',
+                     help='save only adversarial texts.')
+    parser.set_defaults(keepall=False)
+
     return parser.parse_args()
 
 
 def config(args, embedding):
-    class _Dummy():
-        pass
-    cfg = _Dummy()
-
-    cfg.batch_size = args.batch_size
-    cfg.bipolar = args.bipolar
-    cfg.data = args.data
-    cfg.drop_rate = args.drop_rate
-    cfg.embedding_dim = args.embedding_dim
-    cfg.feature_maps = args.feature_maps
-    cfg.highways = args.highways
-    cfg.kernel_sizes = args.kernel_sizes
-    cfg.lstm_units = args.lstm_units
-    cfg.lstms = args.lstms
-    cfg.n_classes = args.n_classes
-    cfg.name = args.name
-    cfg.seqlen = args.seqlen
-    cfg.vocab_size = args.vocab_size
-    cfg.wordlen = args.wordlen
-
-    cfg.adv_epochs = args.adv_epochs
-    cfg.adv_eps = args.adv_eps
-    cfg.outfile = args.outfile
-    cfg.samples = args.samples
-
+    cfg = deepcopy(args)
+    cfg.data = os.path.expanduser(cfg.data)
     cfg.charlen = (cfg.seqlen * (cfg.wordlen
                                  + 2         # start/end of word symbol
                                  + 1)        # whitespace between tokens
                    + 1)                      # end of sentence symbol
 
-    if args.n_classes > 2:
+    if cfg.n_classes > 2:
         cfg.output = tf.nn.softmax
-    elif 2 == args.n_classes:
-        cfg.output = tf.tanh if args.bipolar else tf.sigmoid
+    elif 2 == cfg.n_classes:
+        cfg.output = tf.tanh if cfg.bipolar else tf.sigmoid
 
     cfg.embedding = tf.placeholder(tf.float32, embedding.shape)
-
     return cfg
 
 
@@ -156,34 +140,22 @@ def main(args):
     env.sess = sess
 
     info('loading data')
-    (X_train, y_train), (X_test, y_test), (X_valid, y_valid) = load_data(
-        os.path.expanduser(cfg.data), cfg.bipolar)
+    (_, _), (X_data, y_data) = load_data(os.path.expanduser(cfg.data),
+                                         cfg.bipolar, validation_split=-1)
 
     info('loading model')
     train(env, load=True, name=cfg.name)
     info('evaluating against clean test samples')
-    evaluate(env, X_test, y_test, batch_size=cfg.batch_size)
-
-    if cfg.samples > 0:
-        ind = np.random.permutation(X_test.shape[0])[:cfg.samples]
-        X_data, y_data = X_test[ind], y_test[ind]
-    else:
-        X_data, y_data = X_test, y_test
-
+    evaluate(env, X_data, y_data, batch_size=cfg.batch_size)
     info('making adversarial texts')
     X_adv = make_adversarial(env, X_data)
     info('evaluating against adversarial texts')
     evaluate(env, X_adv, y_data, batch_size=cfg.batch_size)
+    y_adv = predict(env, X_adv, batch_size=cfg.batch_size)
     env.sess.close()
-
-    fname = os.path.join('out', cfg.outfile)
-    y_data = y_data.flatten()
-    if cfg.bipolar:
-        y_data = (y_data + 1) // 2
-    for i in range(cfg.n_classes):
-        fn = '{0}-{1}'.format(fname, i)
-        info('saving {}'.format(fn))
-        np.save(fn, X_data[y_data == i])
+    info('recover chars from indices')
+    X_sents = index2char(X_adv, unk=cfg.unk)
+    postfn(cfg, X_sents, y_data, y_adv)
 
 
 if __name__ == '__main__':
