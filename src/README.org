@@ -4,7 +4,7 @@ This is the code for our paper https://arxiv.org/abs/1801.07175
 
 * Introduction
 
-We are focusing on generate adversarial texts for text classification models.
+We are focusing on generating adversarial texts for text classification models.
 However, our framework can be easily extended to other text models.  Basically
 we search for potential adversarials in the text/character embedding space, and
 reconstruct the texts by nearest neighbor search.  The reconstructed texts are
@@ -14,27 +14,31 @@ same as generating adversarial images.
 
 * Code Organization
 
-Our codes are carefully optimized and modularized to make it easy to reuse.
+Our codes are carefully optimized and modularized to make it easy to reuse
+(hopefully).
 
 ** Dependencies
 
 These are the packages I used for my experiment.
 
 - Python 3.6.3 https://www.python.org/
-- TensorFlow v1.7 https://www.tensorflow.org/
-- NLTK v3.2 http://www.nltk.org/
-- gensim https://radimrehurek.com/gensim/
-- annoy https://github.com/spotify/annoy
+- TensorFlow v1.8 https://www.tensorflow.org/
+- NLTK v3.2 http://www.nltk.org/, tokenizing.
+- gensim https://radimrehurek.com/gensim/, WMD, word2vec interface.
+- annoy https://github.com/spotify/annoy, fast approximate nearest neighbor
+  search, much faster than naive nearest neighbor search.
 - Numpy http://www.numpy.org/
 
 ** Code Structure
 
-All python files are backbone codes, while all bash files are helper codes.
-Bash files call corresponding python files with appropriate parameters.  They
-all follow certain naming conventions to make the code structure clear and easy
-to understand.  Please refer to READMEs in each sub-folder for doc.
+All python files are /backbone codes/, while all bash files are /instance
+codes/.  In bash files, we call corresponding python scripts with appropriate
+parameters.  They all follow certain naming conventions to make the code
+structure clear and easy to understand.  Please refer to READMEs in each
+sub-folder for doc.
 
-- The core codes reside in current direction.
+- The core codes (i.e., model training/testing, generating adversarial texts)
+  reside in current direction.
 - The adversarial methods reside in [[file:attacks/][attacks/]] folder.
 - The data pipeline codes reside in [[file:data_utils/][data_utils/]] folder.
 - The other miscellaneous helper codes reside in [[file:utils/][utils/]] folder.
@@ -46,14 +50,20 @@ to understand.  Please refer to READMEs in each sub-folder for doc.
 - *MODEL.py* contains the model definition.
   - [[file:wordcnn.py][wordcnn.py]] defines the word-level model =WordCNN=.
   - [[file:charlstm.py][charlstm.py]] defines character-aware model =CharLSTM=.
-- *run_MODEL.py* contains model training code.
+- *run_MODEL.py* contains model training code.  Should have been named
+  train_MODEL.py.
   - [[file:run_wordcnn.py][run_wordcnn.py]] trains word-level model.
   - [[file:run_charlstm.py][run_charlstm.py]] trains character-aware model.
+- *eval_MODEL.py* contains model evaluating code.  This code is almost identify
+  to the *run_MODEL.py* code except that it loads the model instead of training
+  it from scratch.  Besides, we only need test data for evaluation.
+  - [[file:run_wordcnn.py][eval_wordcnn.py]] evaluates word-level model.
+  - [[file:run_charlstm.py][eval_charlstm.py]] evaluates character-aware model.
 - *MODEL_ADV.py* contains the code to generate adversarial samples for model.
   For example, [[file:wordcnn_fgm.py][wordcnn_fgm.py]] generates adversarial texts for =WordCNN= model
   via =FGM= method.
 
-** Helper Code
+** Instance Code
 
 - Codes to train each model on different dataset
   - *MODEL_DATA.bash* for classification problems with more than 2 labels, e.g,

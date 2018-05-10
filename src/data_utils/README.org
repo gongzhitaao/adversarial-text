@@ -1,0 +1,58 @@
+#+TITLE: Data Pipeline
+
+* Introduction
+
+This folder contains the pipeline codes to pre/post-process data.  There are a
+few things to note:
+
+1. When processing files, we always assume that each line contains a complete
+   data sample.
+2. Whenever possible, the results are directly printed to console.  So if you
+   use these utilities, please redirect the output to appropriate files.
+
+** Backbone Codes
+
+- [[file:0_tokenize.py]] tokenizes (with NLTK tokenizing utility) the input file
+  line by line.  Optionally it may also strip HTML tags (with bleach utility)
+  from the file if desired.
+- [[file:1_charpad.py]] prepares the text files in a /character-level/, the output
+  will be printed out directly to the console.  Concretely, it will do the
+  following operations:
+
+  1. truncate/pad each sentence to a fixed length.
+  2. truncate/pad each word to a fixed length.
+  3. Add start/end of word symbol to each word.
+  4. Add end of sentence symbol to each sentence.
+
+  For example, the following sentence
+
+  #+BEGIN_EXAMPLE
+  hello, I am an example.
+  #+END_EXAMPLE
+
+  Will be transformed to
+
+  #+BEGIN_EXAMPLE
+  {hell} {,   } {I   } {am  } {an  } {exam} {.   } +
+  #+END_EXAMPLE
+  The ={= and =}= are start/end of word symbol, the =+= is the end of sentence
+  symbol.  The unknown characters may also be replaced by a specific character,
+  =|= in our experiments.
+- [[file:1_wordpad.py]] will truncate/pad sentence to a fixed length.
+- [[file:2_char2index.py]] will convert characters to its indices in the embedding
+  space.  In our experiment, characters are one-hot encoded.
+- [[file:2_token2index.py]] will convert words to its indices in the embedding
+  space, with the help of gensim package.
+
+** Instance Code
+
+- *_c2c.bash*, *_c2w.bash*, *_w2c.bash*, *_w2w* are codes to convert data for
+  transferability.  *c* stands for /char-level/, *w* for /word-level/.
+  *_c2w.bash* prepares the character-level adversarial texts for word-level
+  models.  *_c2c.bash* prepares the character-level adversarial texts for
+  character-level models.
+- [[file:docdist.py]] computes the Word Mover's Distance between each pair of
+  sentences stored in two files.
+- [[file:wmd.py]] first finds common adversarial text samples generated from the
+  same clean sample with different noise level, then computes WMD between each
+  adversarial text and the clean sample.
