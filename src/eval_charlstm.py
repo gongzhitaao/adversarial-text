@@ -49,36 +49,19 @@ def parse_args():
 
 
 def config(args, embedding):
-    class _Dummy():
-        pass
-    cfg = _Dummy()
-
-    cfg.batch_size = args.batch_size
-    cfg.data = os.path.expanduser(args.data)
-    cfg.drop_rate = args.drop_rate
-    cfg.embedding_dim = args.embedding_dim
-    cfg.feature_maps = args.feature_maps
-    cfg.highways = args.highways
-    cfg.kernel_sizes = args.kernel_sizes
-    cfg.lstm_units = args.lstm_units
-    cfg.lstms = args.lstms
-    cfg.n_classes = args.n_classes
-    cfg.seqlen = args.seqlen
-    cfg.vocab_size = args.vocab_size
-    cfg.wordlen = args.wordlen
-
+    cfg = args
+    cfg.data = os.path.expanduser(cfg.data)
     cfg.charlen = (cfg.seqlen * (cfg.wordlen
                                  + 2         # start/end of word symbol
                                  + 1)        # whitespace between tokens
                    + 1)                      # end of sentence symbol
 
-    if args.n_classes > 2:
+    if cfg.n_classes > 2:
         cfg.output = tf.nn.softmax
-    elif 2 == args.n_classes:
-        cfg.output = tf.tanh if args.bipolar else tf.sigmoid
+    elif 2 == cfg.n_classes:
+        cfg.output = tf.tanh if cfg.bipolar else tf.sigmoid
 
     cfg.embedding = tf.placeholder(tf.float32, embedding.shape)
-
     return cfg
 
 
@@ -97,7 +80,6 @@ def build_graph(cfg):
     env.ybar = m.predict(env.x, env.training)
     env.saver = tf.train.Saver()
     env = build_metric(env, cfg)
-
     return env
 
 
@@ -118,12 +100,12 @@ def main(args):
     sess.run(tf.local_variables_initializer())
     env.sess = sess
 
-    info('loading data')
-    X_test, y_test = load_data(cfg.data, args.bipolar, -1)
+    info('loading data {}'.format(cfg.data))
+    X_test, y_test = load_data(cfg.data, cfg.bipolar, -1)
 
     info('training model')
-    train(env, load=True, name=args.name)
-    evaluate(env, X_test, y_test, batch_size=args.batch_size)
+    train(env, load=True, name=cfg.name)
+    evaluate(env, X_test, y_test, batch_size=cfg.batch_size)
     env.sess.close()
 
 

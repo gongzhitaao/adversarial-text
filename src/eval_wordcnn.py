@@ -96,7 +96,7 @@ def main(args):
     sess.run(tf.local_variables_initializer())
     env.sess = sess
 
-    info('loading data')
+    info('loading data {}'.format(cfg.data))
     X_test, y_test = load_data(cfg.data, cfg.bipolar, -1)
 
     info('training model')

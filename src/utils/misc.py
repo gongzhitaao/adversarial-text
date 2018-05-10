@@ -8,7 +8,8 @@ import tensorflow as tf
 from tqdm import tqdm
 
 
-__all__ = ['load_data', 'build_metric', 'ReverseEmbedding', 'postfn']
+__all__ = ['load_data', 'build_metric', 'ReverseEmbedding', 'postfn',
+           'index2char']
 
 
 logger = logging.getLogger(__name__)
@@ -118,8 +119,9 @@ class ReverseEmbedding:
         pad = self.w2v.vocab['<pad>'].index
         eos = self.w2v.vocab['<eos>'].index
         with DisableLogger():
-            for i, (cur, dat) in tqdm(enumerate(zip(vec, X_data)),
-                                      total=vec.shape[0]):
+            # for i, (cur, dat) in tqdm(enumerate(zip(vec, X_data)),
+            #                           total=vec.shape[0]):
+            for i, (cur, dat) in enumerate(zip(vec, X_data)):
                 # if the original token is <pad>, do not alter it
                 tokens = []
                 for v, x in zip(cur, dat):
@@ -143,17 +145,22 @@ class ReverseEmbedding:
 
 
 def postfn(cfg, X_sents, y_data, y_adv):
+    fname = os.path.join('out', cfg.outfile)
+
     y_data = y_data.flatten()
     if cfg.bipolar:
         y_data = (y_data + 1) // 2
 
-    if y_adv.shape[1] == 1:
-        thres = 0. if cfg.bipolar else 0.5
-        z = y_adv > thres
+    if cfg.keepall:
+        isadv = np.ones(y_data.shape, dtype=bool)
     else:
-        z = np.argmax(y_adv, axis=1)
-    isadv = y_data != z.flatten()
-    fname = os.path.join('out', cfg.outfile)
+        if y_adv.shape[1] == 1:
+            thres = 0. if cfg.bipolar else 0.5
+            z = y_adv > thres
+        else:
+            z = np.argmax(y_adv, axis=1)
+        isadv = y_data != z.flatten()
+
     for i in range(cfg.n_classes):
         cur = np.where(np.all([isadv, y_data == i], axis=0))[0]
         # sents = ['{} '.format(z[x]) + X_sents[x] for x in cur]
@@ -162,6 +169,16 @@ def postfn(cfg, X_sents, y_data, y_adv):
         info('saving {}'.format(fn))
         with open(fn, 'w') as w:
             w.write('\n'.join(sents))
-        fn = '{}-{}.npy'.format(fname, i)
-        info('saving {}'.format(fn))
-        np.save(fn, cur)
+        if not cfg.keepall:
+            fn = '{}-{}.npy'.format(fname, i)
+            info('saving {}'.format(fn))
+            np.save(fn, cur)
+
+
+def index2char(mat, unk):
+    sents = []
+    for line in tqdm(mat, total=mat.shape[0]):
+        sent = ''.join(unk if ord('\n') == c or ord('\r') == c else chr(c)
+                       for c in line)
+        sents.append(sent)
+    return sents

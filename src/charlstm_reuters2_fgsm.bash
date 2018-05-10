@@ -2,7 +2,7 @@
 
 seqlen=100
 wordlen=20
-adv_eps=0.2
+adv_eps=0.168
 dataset=reuters2
 
 python charlstm_fgm.py \
@@ -24,5 +24,4 @@ python charlstm_fgm.py \
        --adv_epochs 5 \
        --adv_eps ${adv_eps} \
        --fgsm \
-       --outfile ${dataset}-char-fgsm-eps-${adv_eps} \
-       --samples -1 \
+       --outfile ${dataset}-char-fgsm-eps-${adv_eps}-tmp

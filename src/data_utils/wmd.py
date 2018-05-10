@@ -70,10 +70,11 @@ def main(args):
     w2v = KeyedVectors.load(os.path.expanduser(args.w2v))
     with DisableLogger():
         dist_groups = [distance(w2v, sents) for sents in sent_groups]
+    zipped = sorted(zip(dist_groups, sent_groups), key=lambda x: x[0][1][1])
     fn = os.path.expanduser(args.outfile)
     info('saving {}'.format(fn))
     with open(fn, 'w') as w:
-        for dists, sents in zip(dist_groups, sent_groups):
+        for dists, sents in zipped:
             for (wmd, n), sent in zip(dists, sents):
                 w.write('{:.4f} {} {}'.format(wmd, n, sent))
             w.write('\n')

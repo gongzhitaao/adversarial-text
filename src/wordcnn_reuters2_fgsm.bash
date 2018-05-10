@@ -1,16 +1,15 @@
 #!/bin/bash
 
 seqlen=100
-adv_eps=0.15
+adv_eps=1
 data=reuters2
-n_samples=100
 
 python wordcnn_fgm.py \
-       --adv_batch_size 16 \
+       --adv_batch_size 64 \
        --adv_epochs 5 \
        --adv_eps ${adv_eps} \
        --batch_size 64 \
-       --data ~/data/reuters/${data}/${data}-word-sample-${n_samples}-seqlen-${seqlen}.npz \
+       --data ~/data/reuters/${data}/${data}-word-seqlen-${seqlen}.npz \
        --drop_rate 0.2 \
        --embedding ~/data/glove/glove.840B.300d.w2v.vectors.npy \
        --filters 128 \
