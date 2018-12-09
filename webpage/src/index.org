@@ -1,12 +1,30 @@
 #+TITLE: Adversarial Texts with Gradient Methods
-#+HTML_HEAD: <link rel="stylesheet" type="text/css" href="http://gongzhitaao.org/orgcss/org.css"/>
+#+OPTIONS: toc:nil
+#+HTML_HEAD: <link rel="stylesheet" type="text/css" href="https://gongzhitaao.org/orgcss/org.css"/>
 
 * Abstract                                                           :ignore:
+:PROPERTIES:
+:CUSTOM_ID: h1-abstract-8d3ca
+:END:
 
 #+BEGIN_abstract
+This page shows the complete result of our simple adversarial text generation
+method.  You could find the source code and report here
+[[https://github.com/gongzhitaao/adversarial-text][github/gongzhitaao/adversarial-text]].  Due to some reasons, the paper is
+withdrawn from arXiV.  It is only available on GitHub.
 #+END_abstract
 
+* TOC                                                                :ignore:
+:PROPERTIES:
+:CUSTOM_ID: h1-toc-72578
+:END:
+
+#+TOC: headlines 2
+
 * Introduction
+:PROPERTIES:
+:CUSTOM_ID: h1-introduction-238f4
+:END:
 
 It has been shown in cite:szegedy2013-intriguing that we can apply very subtle
 noise to images to trick deep learning into wrong prediction with very high
@@ -24,9 +42,28 @@ JSMA cite:papernot2015-limitations and
 DeepFool cite:moosavi-dezfooli2015-deepfool.  These are all gradient attacking
 methods.
 
+#+ATTR_HTML: :width 70%
 #+CAPTION: Adversarial examples created on MNIST
 #+NAME: fig:imgdemo
 [[file:img/imgdemo.png]]
+
+* Method
+:PROPERTIES:
+:CUSTOM_ID: h1-method-157a9
+:END:
+
+Our method is straightforward.  We find the adversarial text in the /embedding
+space/, e.g. cite:pennington2014-glove.  Part of the difficulty of generating
+adversarial texts is the discreteness of the input space.  Instead of working in
+the raw input space, we first use the above method to find /candidate
+adversarial embeddings/ in the embedding space, and use /nearest neighbor/ to
+find the corresponding adversarial tokens.  Since the embedding space is
+continuous, finding adversarials is the same as images.  Similar to images, most
+of the time we only need to modify a couple tokens (out of hundreds) to change
+to fool different text models.
+
+The downside of this method is that we do not have control over the quality
+(e.g., syntax, semantics) of the generated sentences.
 
 * Result
 :PROPERTIES:
@@ -92,5 +129,8 @@ DeepFool alters the label of the text piece by replace only one word.
 | Reuters-5 | [[file:result/reuters5_deepfool_eps20.html][0.1163 / 0.4034]] | [[file:result/reuters5_deepfool_eps30.html][0.1162 / 0.2222]] | [[file:result/reuters5_deepfool_eps40.html][0.1162 / 0.1641]] | [[file:result/reuters5_deepfool_eps50.html][0.1162 / 0.1402]] |
 
 * Reference                                                          :ignore:
+:PROPERTIES:
+:CUSTOM_ID: h1-reference-fb6ad
+:END:
 
-#+BIBLIOGRAPHY: nn.bib plain limit:t option:-nokeywords
+#+BIBLIOGRAPHY: /home/gongzhitaao/.local/data/bibliography/refdb.bib plain limit:t option:--no-keywords
