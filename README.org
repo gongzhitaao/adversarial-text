@@ -17,3 +17,10 @@ same as generating adversarial images.
 The code to reproduce the results in our paper resides in [[file:src/][src/]] directory.  Our
 codes are carefully optimized and modularized to make it easy to reuse.  Please
 refer to the README in sub-folder for details.
+
+* Demo
+
+More results on https://gongzhitaao.org/adversarial-text.
+- [[https://gongzhitaao.org/adversarial-text/result/reuters2_deepfool_eps50.html][DeepFool on Reuters-2]]
+- [[https://gongzhitaao.org/adversarial-text/result/reuters5_deepfool_eps50.html][DeepFool on Reuters-5]]
+- [[https://gongzhitaao.org/adversarial-text/result/imdb_deepfool_eps50.html][DeepFool on IMDB]]
